@@ -1,82 +1,85 @@
-# RepCount – gympass-loggning med statistik
+# RepCount – gym workout logging with stats
 
-## Vad projektet gör
-App för att logga gympass (övning + set + reps + vikt) och se statistik
-över senaste passet samt utveckling över tid. Mobilapp för loggning,
-webbsida för statistik (à la Strava). Konto + synk så datan följer med
-mellan enheter.
+## What the project does
+An app for logging gym workouts (exercise + sets + reps + weight) and
+viewing stats for the latest session as well as progress over time.
+Mobile app for logging, web app for stats (Strava-style). Account +
+sync so data follows you across devices.
 
-## Arkitektur
-Monorepo (pnpm workspaces, TypeScript överallt):
+## Architecture
+Monorepo (pnpm workspaces, TypeScript everywhere):
 
-- `apps/mobile/` – Expo (React Native). Primär yta: logga pass, se
-  senaste pass.
-- `apps/web/` – React (Vite). Primär yta: inloggning + statistik över
-  tid (grafer, PB, volym).
-- `packages/shared/` – delad kod: datatyper, Supabase-klient,
-  statistikberäkningar. Både mobile och web importerar härifrån –
-  ingen dubblerad affärslogik.
-- `supabase/` – databas-migrationer och config (Supabase CLI).
+- `apps/mobile/` – Expo (React Native). Primary surface: log a
+  workout, view the latest workout.
+- `apps/web/` – React (Vite). Primary surface: login + stats over time
+  (charts, PBs, volume).
+- `packages/shared/` – shared code: data types, Supabase client,
+  stats calculations. Both mobile and web import from here – no
+  duplicated business logic.
+- `supabase/` – database migrations and config (Supabase CLI).
 
-Backend: Supabase (Postgres + Auth + auto-genererat API). Ingen egen
-API-server – klienterna pratar direkt med Supabase, säkerhet via RLS.
+Backend: Supabase (Postgres + Auth + auto-generated API). No custom
+API server – clients talk directly to Supabase, security via RLS.
 
-## Datamodell (Postgres)
-- `profiles` – 1:1 mot auth.users (visningsnamn, enhet kg/lbs).
-- `exercises` – övningskatalog: namn, muskelgrupp. Globala rader
-  (user_id null) + användarens egna.
-- `workouts` – ett pass: user_id, started_at, ended_at, anteckning.
-- `workout_exercises` – övning i ett pass: workout_id, exercise_id,
-  ordning.
-- `sets` – ett set: workout_exercise_id, set_nr, reps, vikt_kg.
+## Data model (Postgres)
+- `profiles` – 1:1 with auth.users (display name, unit kg/lbs).
+- `exercises` – exercise catalog: name, muscle group. Global rows
+  (user_id null) + the user's own.
+- `workouts` – a session: user_id, started_at, ended_at, note.
+- `workout_exercises` – an exercise within a session: workout_id,
+  exercise_id, order.
+- `sets` – a set: workout_exercise_id, set_nr, reps, weight_kg.
 
-Vikter lagras alltid i kg (numeric); lbs är bara presentation.
-RLS på alla tabeller: användare ser/ändrar bara sina egna rader
-(globala `exercises` är läsbara för alla).
+Weights are always stored in kg (numeric); lbs is presentation only.
+RLS on all tables: users can only see/change their own rows (global
+`exercises` rows are readable by everyone).
 
-## Statistik (beräknas i packages/shared)
-- Senaste pass: total volym (Σ reps × vikt), antal set/övningar, längd.
-- Över tid: volym per vecka, passfrekvens, PB per övning (tyngsta set
-  och bästa e1RM), progression per övning.
+## Stats (calculated in packages/shared)
+- Latest workout: total volume (Σ reps × weight), number of
+  sets/exercises, duration.
+- Over time: volume per week, workout frequency, PB per exercise
+  (heaviest set and best e1RM), progression per exercise.
 
-## Konventioner & regler
-- TypeScript strict mode i alla paket; delade typer bor i
-  `packages/shared`, aldrig kopierade.
-- Databasändringar görs ALLTID som migrationer i `supabase/migrations/`
-  – aldrig manuellt i Supabase-dashboarden.
-- Supabase-nycklar läses från `.env` (gitignored). Endast anon-nyckeln
-  får förekomma i klientkod; service role-nyckeln får ALDRIG hamna i
-  apps/ eller packages/.
-- All användardata skyddas av RLS – ny tabell utan RLS-policy får inte
-  mergas.
-- UI-språk: svenska. Kod, kommentarer och identifierare: engelska.
-- Fråga alltid användaren om något är osäkert eller om ett vägval
-  saknar uppenbart svar – gissa inte.
+## Conventions & rules
+- TypeScript strict mode in all packages; shared types live in
+  `packages/shared`, never duplicated.
+- Database changes are ALWAYS made as migrations in
+  `supabase/migrations/` – never manually in the Supabase dashboard.
+- Supabase keys are read from `.env` (gitignored). Only the anon key
+  may appear in client code; the service role key must NEVER end up
+  in apps/ or packages/.
+- All user data is protected by RLS – a new table without an RLS
+  policy may not be merged.
+- UI language: Swedish. Code, comments, and identifiers: English.
+- Always ask the user when something is uncertain or a choice has no
+  obvious answer – don't guess.
 
-## Kommandon
-- `pnpm install` – installera allt (från repo-roten)
-- `pnpm --filter mobile start` – Expo dev-server
-- `pnpm --filter web dev` – webben lokalt
-- `supabase db push` – applicera migrationer (kräver Supabase CLI)
+## Commands
+- `pnpm install` – install everything (from the repo root)
+- `pnpm --filter mobile start` – Expo dev server
+- `pnpm --filter web dev` – run the web app locally
+- `supabase db push` – apply migrations (requires Supabase CLI)
 
-## TODO (i prioritetsordning)
-- [x] Initiera monorepo: pnpm-workspace.yaml, tsconfig-bas, scaffolda
-      Expo-appen och web-appen
-- [x] Skapa Supabase-projekt, skriva schema-migrationer + RLS-policyer,
-      seeda övningskatalogen med vanliga övningar
-- [x] packages/shared: typer, Supabase-klient, statistikfunktioner
-      (volym, e1RM, PB) med enhetstester
-- [x] Mobil MVP: auth (e-post) → starta pass → lägga till övning/set →
-      avsluta pass → sammanfattning av senaste pass
-- [ ] Webb MVP: login + översikt över tid (volym/vecka, frekvens, PB)
-- [ ] Grafer på webben (progression per övning)
-- [ ] Apple/Google-inloggning, offline-stöd i appen
+## TODO (in priority order)
+- [x] Initialize the monorepo: pnpm-workspace.yaml, base tsconfig,
+      scaffold the Expo app and the web app
+- [x] Create the Supabase project, write schema migrations + RLS
+      policies, seed the exercise catalog with common exercises
+- [x] packages/shared: types, Supabase client, stats functions
+      (volume, e1RM, PB) with unit tests
+- [x] Mobile MVP: auth (email) → start workout → add exercise/set →
+      end workout → summary of the latest workout
+- [ ] Web MVP: login + overview over time (volume/week, frequency, PB)
+- [ ] Charts on the web (progression per exercise)
+- [ ] Apple/Google login, offline support in the app
 
-## Öppna frågor (att stämma av innan berörd del byggs)
-- Inloggning i MVP: räcker e-post/lösenord, eller Apple/Google direkt?
-- Enheter: kg som default med lbs som inställning – OK?
-- Ska webben också kunna logga pass, eller är den enbart statistik?
+## Open questions (to resolve before the relevant part is built)
+- Login for the MVP: is email/password enough, or Apple/Google
+  right away?
+- Units: kg as default with lbs as a setting – OK?
+- Should the web app also be able to log workouts, or is it
+  stats-only?
 
-## Miljö
+## Environment
 - Node 20+, pnpm 9+, Expo CLI, Supabase CLI
-- `.env` i repo-roten: SUPABASE_URL, SUPABASE_ANON_KEY
+- `.env` in the repo root: SUPABASE_URL, SUPABASE_ANON_KEY
