@@ -51,6 +51,9 @@ RLS on all tables: users can only see/change their own rows (global
 - All user data is protected by RLS – a new table without an RLS
   policy may not be merged.
 - UI language: Swedish. Code, comments, and identifiers: English.
+- Only the user pushes to git (`git push`). Claude may create local
+  commits when asked, but must never run `git push` – always hand
+  that step back to the user.
 - Always ask the user when something is uncertain or a choice has no
   obvious answer – don't guess.
 
