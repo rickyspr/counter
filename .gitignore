@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+.expo/
+web-build/
+
+# Supabase local dev
+supabase/.temp/
+
+# OS/editor
+.DS_Store
+*.log

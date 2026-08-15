@@ -1,0 +1,8 @@
+{
+  "name": "repcount",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.21.0"
+}
