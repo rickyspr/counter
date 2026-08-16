@@ -72,7 +72,7 @@ RLS on all tables: users can only see/change their own rows (global
       (volume, e1RM, PB) with unit tests
 - [x] Mobile MVP: auth (email) → start workout → add exercise/set →
       end workout → summary of the latest workout
-- [ ] Web MVP: login + overview over time (volume/week, frequency, PB)
+- [x] Web MVP: login + overview over time (volume/week, frequency, PB)
 - [ ] Charts on the web (progression per exercise)
 - [ ] Apple/Google login, offline support in the app
 
