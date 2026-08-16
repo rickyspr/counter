@@ -54,6 +54,11 @@ RLS on all tables: users can only see/change their own rows (global
 - Only the user pushes to git (`git push`). Claude may create local
   commits when asked, but must never run `git push` – always hand
   that step back to the user.
+- After every major implementation, describe how the user can try it
+  themselves (mobile device/simulator, web browser, etc.) – exact
+  commands and steps. If there's nothing user-testable yet (e.g.
+  backend-only or library code), say that explicitly instead of
+  skipping the section.
 - Always ask the user when something is uncertain or a choice has no
   obvious answer – don't guess.
 
