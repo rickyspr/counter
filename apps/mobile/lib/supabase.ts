@@ -17,5 +17,8 @@ export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE (istället för implicit flow) rekommenderas av Supabase för
+    // mobilappar utan client secret - används av Google-inloggningen.
+    flowType: "pkce",
   },
 });

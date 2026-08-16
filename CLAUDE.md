@@ -79,7 +79,11 @@ RLS on all tables: users can only see/change their own rows (global
       end workout → summary of the latest workout
 - [x] Web MVP: login + overview over time (volume/week, frequency, PB)
 - [x] Charts on the web (progression per exercise)
-- [ ] Apple/Google login, offline support in the app
+- [x] Google login in the app (`expo-auth-session` + Supabase PKCE
+      OAuth) – requires a native dev-client build (`npx expo run:ios`),
+      not supported through Expo Go's dynamic `exp://` redirect
+- [ ] Apple login – deferred, requires a paid Apple Developer account
+- [ ] Offline support in the app
 
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google

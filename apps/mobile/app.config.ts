@@ -10,12 +10,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "mobile",
   slug: "mobile",
+  scheme: "repcount",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
   ios: {
     supportsTablet: true,
+    bundleIdentifier: "com.repcount.mobile",
   },
   android: {
     adaptiveIcon: {
@@ -29,6 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: "./assets/favicon.png",
   },
+  plugins: ["expo-web-browser"],
   extra: {
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
