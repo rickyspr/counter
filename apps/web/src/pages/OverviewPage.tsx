@@ -1,10 +1,12 @@
 import {
   personalBestForExercise,
+  progressionForExercise,
   volumePerWeek,
   workoutFrequencyPerWeek,
   type SetRecord,
 } from "@repcount/shared";
 import { useEffect, useState } from "react";
+import { ProgressionChart } from "../components/ProgressionChart";
 import { useAuth } from "../lib/auth-context";
 import { fetchAllSetsForUser, fetchExerciseNames } from "../lib/queries";
 import { supabase } from "../lib/supabase";
@@ -23,6 +25,9 @@ export function OverviewPage() {
   const [sets, setSets] = useState<SetRecord[]>([]);
   const [exerciseNames, setExerciseNames] = useState<Map<string, string>>(
     new Map(),
+  );
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
+    null,
   );
 
   useEffect(() => {
@@ -65,6 +70,12 @@ export function OverviewPage() {
     })
     .filter((row): row is PersonalBestRow => row !== null)
     .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
+
+  const effectiveSelectedExerciseId =
+    selectedExerciseId ?? personalBests[0]?.exerciseId ?? null;
+  const progression = effectiveSelectedExerciseId
+    ? progressionForExercise(sets, effectiveSelectedExerciseId)
+    : [];
 
   return (
     <div className="overview-page">
@@ -120,6 +131,25 @@ export function OverviewPage() {
                 ))}
               </tbody>
             </table>
+          </section>
+
+          <section>
+            <div className="section-header">
+              <h2>Progression per övning</h2>
+              {personalBests.length > 0 && (
+                <select
+                  value={effectiveSelectedExerciseId ?? ""}
+                  onChange={(e) => setSelectedExerciseId(e.target.value)}
+                >
+                  {personalBests.map((row) => (
+                    <option key={row.exerciseId} value={row.exerciseId}>
+                      {row.exerciseName}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <ProgressionChart points={progression} />
           </section>
 
           <section>

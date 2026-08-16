@@ -12,6 +12,14 @@ build/
 .expo/
 web-build/
 
+# Generated native projects (Expo prebuild) - only ever belong inside
+# apps/mobile/, never at the repo root. If these show up here, an expo
+# command was run from the wrong directory.
+/ios
+/android
+/app.json
+/package-lock.json
+
 # Supabase local dev
 supabase/.temp/
 

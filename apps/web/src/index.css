@@ -6,6 +6,10 @@
   --card-bg: #f3f4f6;
   --accent: #111827;
   --error: #b91c1c;
+  /* dataviz: validated (light, categorical slot 1) against --card-bg */
+  --chart-series-1: #2a78d6;
+  --chart-gridline: #e5e7eb;
+  --chart-axis: #9ca3af;
 
   color-scheme: light dark;
   font: 16px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
@@ -21,6 +25,10 @@
     --border: #2e303a;
     --card-bg: #1f2028;
     --accent: #e5e7eb;
+    /* dataviz: validated (dark, categorical slot 1) against --card-bg */
+    --chart-series-1: #3987e5;
+    --chart-gridline: #2e303a;
+    --chart-axis: #6b7280;
   }
 }
 
@@ -134,4 +142,106 @@ button:disabled {
   color: var(--error);
   font-size: 14px;
   margin: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.section-header select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.progression-chart {
+  position: relative;
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.progression-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: none;
+}
+
+.chart-gridline {
+  stroke: var(--chart-gridline);
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: var(--chart-axis);
+  font-size: 11px;
+}
+
+.chart-line {
+  stroke: var(--chart-series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-dot {
+  fill: var(--chart-series-1);
+  stroke: var(--card-bg);
+  stroke-width: 2;
+}
+
+.chart-crosshair {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.chart-tooltip strong {
+  color: var(--text);
+}
+
+.chart-tooltip span {
+  color: var(--text-muted);
+}
+
+.chart-table-toggle {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.chart-table-toggle summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.chart-table-toggle table {
+  margin-top: 8px;
+  background: var(--bg);
 }
