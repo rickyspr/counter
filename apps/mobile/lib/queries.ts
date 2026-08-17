@@ -1,4 +1,7 @@
 import type { SetRecord } from "@repcount/shared";
+import * as Crypto from "expo-crypto";
+import { enqueue } from "./offline-queue";
+import { readJSON, writeJSON } from "./storage";
 import { supabase } from "./supabase";
 
 export interface ExerciseOption {
@@ -7,53 +10,80 @@ export interface ExerciseOption {
   muscle_group: string | null;
 }
 
-export async function fetchExerciseCatalog(): Promise<ExerciseOption[]> {
-  const { data, error } = await supabase
-    .from("exercises")
-    .select("id, name, muscle_group")
-    .order("muscle_group", { ascending: true })
-    .order("name", { ascending: true });
-  if (error) throw error;
-  return data;
+const EXERCISE_CACHE_KEY = "repcount:exercise-cache";
+
+// Övningskatalogen ändras sällan, så vi cachar den lokalt och faller
+// tillbaka på cachen om nätverket är nere - annars går det inte att
+// välja övning för ett pass som loggas helt offline. Delar samma
+// pågående/klara hämtning mellan anropare inom sessionen (t.ex.
+// hemskärmens uppvärmning och sedan pass-skärmens mount) istället
+// för att hämta och skriva om cachen två gånger i rad.
+let catalogPromise: Promise<ExerciseOption[]> | null = null;
+
+export function fetchExerciseCatalog(): Promise<ExerciseOption[]> {
+  if (!catalogPromise) {
+    catalogPromise = loadExerciseCatalog().catch((err) => {
+      catalogPromise = null;
+      throw err;
+    });
+  }
+  return catalogPromise;
 }
 
-export async function startWorkout(userId: string) {
-  const { data, error } = await supabase
-    .from("workouts")
-    .insert({ user_id: userId })
-    .select("id, started_at")
-    .single();
-  if (error) throw error;
-  return data;
+async function loadExerciseCatalog(): Promise<ExerciseOption[]> {
+  try {
+    const { data, error } = await supabase
+      .from("exercises")
+      .select("id, name, muscle_group")
+      .order("muscle_group", { ascending: true })
+      .order("name", { ascending: true });
+    if (error) throw error;
+    await writeJSON(EXERCISE_CACHE_KEY, data);
+    return data;
+  } catch (err) {
+    const cached = await readJSON<ExerciseOption[] | null>(EXERCISE_CACHE_KEY, null);
+    if (cached) return cached;
+    throw err;
+  }
 }
 
-export async function endWorkout(workoutId: string) {
-  const { data, error } = await supabase
-    .from("workouts")
-    .update({ ended_at: new Date().toISOString() })
-    .eq("id", workoutId)
-    .select("id, started_at, ended_at")
-    .single();
-  if (error) throw error;
-  return data;
+// De fyra funktionerna nedan skriver ALDRIG direkt mot Supabase.
+// De genererar ett lokalt id och lägger åtgärden i synk-kön (se
+// offline-queue.ts). enqueue() väntar bara in det LOKALA sparandet
+// (millisekunder) innan den returnerar - inte nätverkssynken, som
+// sker i bakgrunden. Det gör att ett helt pass går att logga utan
+// nätverk, samtidigt som varje steg är säkert sparat på disk innan
+// appen tillåts stängas.
+
+export async function startWorkout(
+  userId: string,
+): Promise<{ id: string; started_at: string }> {
+  const id = Crypto.randomUUID();
+  const started_at = new Date().toISOString();
+  await enqueue({ type: "start_workout", id, user_id: userId, started_at });
+  return { id, started_at };
+}
+
+export async function endWorkout(workoutId: string): Promise<{ ended_at: string }> {
+  const ended_at = new Date().toISOString();
+  await enqueue({ type: "end_workout", workout_id: workoutId, ended_at });
+  return { ended_at };
 }
 
 export async function addExerciseToWorkout(
   workoutId: string,
   exerciseId: string,
   orderIndex: number,
-) {
-  const { data, error } = await supabase
-    .from("workout_exercises")
-    .insert({
-      workout_id: workoutId,
-      exercise_id: exerciseId,
-      order_index: orderIndex,
-    })
-    .select("id, exercise_id")
-    .single();
-  if (error) throw error;
-  return data;
+): Promise<{ id: string; exercise_id: string }> {
+  const id = Crypto.randomUUID();
+  await enqueue({
+    type: "add_exercise",
+    id,
+    workout_id: workoutId,
+    exercise_id: exerciseId,
+    order_index: orderIndex,
+  });
+  return { id, exercise_id: exerciseId };
 }
 
 export async function addSet(
@@ -61,19 +91,14 @@ export async function addSet(
   setNr: number,
   reps: number,
   weightKg: number,
-) {
-  const { data, error } = await supabase
-    .from("sets")
-    .insert({
-      workout_exercise_id: workoutExerciseId,
-      set_nr: setNr,
-      reps,
-      weight_kg: weightKg,
-    })
-    .select("id, set_nr, reps, weight_kg")
-    .single();
-  if (error) throw error;
-  return data;
+): Promise<void> {
+  await enqueue({
+    type: "add_set",
+    workout_exercise_id: workoutExerciseId,
+    set_nr: setNr,
+    reps,
+    weight_kg: weightKg,
+  });
 }
 
 interface LatestWorkoutSummaryInput {
@@ -83,6 +108,8 @@ interface LatestWorkoutSummaryInput {
 
 // Hämtar det senast avslutade passet för en användare, samt alla dess set
 // i det format som statistikfunktionerna i @repcount/shared förväntar sig.
+// Kräver nätverk - se CLAUDE.md: offline-stödet täcker loggning, inte
+// att bläddra i historik/statistik offline.
 export async function fetchLatestWorkoutSummaryInput(
   userId: string,
 ): Promise<LatestWorkoutSummaryInput | null> {

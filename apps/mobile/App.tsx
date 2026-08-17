@@ -1,7 +1,8 @@
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { AuthProvider, useAuth } from "./lib/auth-context";
+import { subscribeToSyncErrors } from "./lib/offline-queue";
 import { ActiveWorkoutScreen } from "./screens/ActiveWorkoutScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
@@ -11,6 +12,14 @@ type Screen = { name: "home" } | { name: "workout"; workoutId: string };
 function AppContent() {
   const { session, loading } = useAuth();
   const [screen, setScreen] = useState<Screen>({ name: "home" });
+
+  useEffect(
+    () =>
+      subscribeToSyncErrors((message) => {
+        Alert.alert("Kunde inte synka en ändring", message);
+      }),
+    [],
+  );
 
   if (loading) {
     return (

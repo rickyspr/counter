@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -11,6 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SyncStatusBanner } from "../components/SyncStatusBanner";
+import { useSyncStatus } from "../lib/use-sync-status";
 import {
   addExerciseToWorkout,
   addSet,
@@ -40,19 +41,26 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
   const [sections, setSections] = useState<Section[]>([]);
   const [inputs, setInputs] = useState<Record<string, SetInput>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { online, pendingCount } = useSyncStatus();
 
   useEffect(() => {
+    // Om detta misslyckas finns varken nät eller en sparad kopia av
+    // övningskatalogen (se lib/queries.ts) - händer bara om appen
+    // aldrig varit online sedan installation.
     fetchExerciseCatalog()
       .then(setCatalog)
-      .catch((err) =>
+      .catch(() =>
         Alert.alert(
           "Kunde inte hämta övningar",
-          err instanceof Error ? err.message : "Okänt fel.",
+          "Ingen uppkoppling och ingen sparad övningslista än. Öppna appen minst en gång med nät innan du loggar helt offline.",
         ),
       );
   }, []);
 
+  // addExerciseToWorkout/addSet/endWorkout skriver via en lokal synk-kö
+  // (se lib/offline-queue.ts) - de väntar bara in det lokala sparandet
+  // (millisekunder), inte nätverket, så hela passet går att logga
+  // offline utan märkbar fördröjning.
   async function handlePickExercise(exercise: ExerciseOption) {
     setPickerOpen(false);
     try {
@@ -107,7 +115,6 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
     }
 
     const setNr = section.sets.length + 1;
-    setBusy(true);
     try {
       await addSet(section.workoutExerciseId, setNr, reps, weightKg);
       setSections((prev) =>
@@ -126,13 +133,10 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
         "Kunde inte spara set",
         err instanceof Error ? err.message : "Okänt fel.",
       );
-    } finally {
-      setBusy(false);
     }
   }
 
   async function handleFinish() {
-    setBusy(true);
     try {
       await endWorkout(workoutId);
       onFinish();
@@ -141,8 +145,6 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
         "Kunde inte avsluta passet",
         err instanceof Error ? err.message : "Okänt fel.",
       );
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -183,7 +185,6 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
               <TouchableOpacity
                 style={styles.smallButton}
                 onPress={() => handleAddSet(section)}
-                disabled={busy}
               >
                 <Text style={styles.smallButtonText}>Lägg till set</Text>
               </TouchableOpacity>
@@ -199,16 +200,14 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
         </TouchableOpacity>
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.finishButton}
-        onPress={handleFinish}
-        disabled={busy}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Avsluta pass</Text>
-        )}
+      <SyncStatusBanner
+        online={online}
+        pendingCount={pendingCount}
+        offlineLabel="Offline – loggas lokalt och synkas senare"
+      />
+
+      <TouchableOpacity style={styles.finishButton} onPress={handleFinish}>
+        <Text style={styles.buttonText}>Avsluta pass</Text>
       </TouchableOpacity>
 
       <Modal

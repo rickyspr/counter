@@ -10,7 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { fetchLatestWorkoutSummaryInput, startWorkout } from "../lib/queries";
+import { SyncStatusBanner } from "../components/SyncStatusBanner";
+import { useSyncStatus } from "../lib/use-sync-status";
+import {
+  fetchExerciseCatalog,
+  fetchLatestWorkoutSummaryInput,
+  startWorkout,
+} from "../lib/queries";
 import { supabase } from "../lib/supabase";
 
 interface Props {
@@ -20,10 +26,14 @@ interface Props {
 
 export function HomeScreen({ userId, onStartWorkout }: Props) {
   const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
+  const { online, pendingCount } = useSyncStatus();
 
   const loadLatestWorkout = useCallback(async () => {
+    if (!online) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const result = await fetchLatestWorkoutSummaryInput(userId);
@@ -36,25 +46,25 @@ export function HomeScreen({ userId, onStartWorkout }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, online]);
 
   useEffect(() => {
     loadLatestWorkout();
   }, [loadLatestWorkout]);
 
+  useEffect(() => {
+    // Värmer övningskatalog-cachen (se lib/queries.ts) medan vi
+    // förhoppningsvis har nät, så den finns kvar om man startar ett
+    // pass senare utan uppkoppling.
+    fetchExerciseCatalog().catch(() => {});
+  }, []);
+
+  // startWorkout väntar bara in det lokala sparandet (millisekunder),
+  // inte nätverket, så ett pass går att starta offline utan märkbar
+  // fördröjning.
   async function handleStart() {
-    setStarting(true);
-    try {
-      const workout = await startWorkout(userId);
-      onStartWorkout(workout.id);
-    } catch (err) {
-      Alert.alert(
-        "Kunde inte starta pass",
-        err instanceof Error ? err.message : "Okänt fel.",
-      );
-    } finally {
-      setStarting(false);
-    }
+    const workout = await startWorkout(userId);
+    onStartWorkout(workout.id);
   }
 
   return (
@@ -66,9 +76,15 @@ export function HomeScreen({ userId, onStartWorkout }: Props) {
     >
       <Text style={styles.title}>RepCount</Text>
 
+      <SyncStatusBanner online={online} pendingCount={pendingCount} />
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Senaste pass</Text>
-        {loading ? (
+        {!online ? (
+          <Text style={styles.emptyText}>
+            Ingen uppkoppling – statistik uppdateras när du är online igen.
+          </Text>
+        ) : loading ? (
           <ActivityIndicator />
         ) : summary ? (
           <View style={styles.statsGrid}>
@@ -89,16 +105,8 @@ export function HomeScreen({ userId, onStartWorkout }: Props) {
         )}
       </View>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleStart}
-        disabled={starting}
-      >
-        {starting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Starta nytt pass</Text>
-        )}
+      <TouchableOpacity style={styles.button} onPress={handleStart}>
+        <Text style={styles.buttonText}>Starta nytt pass</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => supabase.auth.signOut()}>

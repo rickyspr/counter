@@ -83,7 +83,11 @@ RLS on all tables: users can only see/change their own rows (global
       OAuth) – requires a native dev-client build (`npx expo run:ios`),
       not supported through Expo Go's dynamic `exp://` redirect
 - [ ] Apple login – deferred, requires a paid Apple Developer account
-- [ ] Offline support in the app
+- [x] Offline support in the app – logging a full workout (start →
+      add exercise/set → end) works with no connection, via a local
+      AsyncStorage sync queue (`apps/mobile/lib/offline-queue.ts`)
+      that replays against Supabase once online. Browsing history/
+      stats still requires a connection - not in scope
 
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google
