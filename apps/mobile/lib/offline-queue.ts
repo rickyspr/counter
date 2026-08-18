@@ -1,4 +1,4 @@
-import { onReconnect } from "./network";
+import { getOnlineStatus, onReconnect } from "./network";
 import { readJSON, writeJSON } from "./storage";
 import { supabase } from "./supabase";
 
@@ -18,10 +18,20 @@ type QueuedAction =
     }
   | {
       type: "add_set";
+      // Valfritt: köposter som sparades av en äldre appversion saknar id.
+      id?: string;
       workout_exercise_id: string;
       set_nr: number;
       reps: number;
       weight_kg: number;
+    }
+  | {
+      type: "delete_set";
+      id: string;
+    }
+  | {
+      type: "delete_exercise";
+      id: string;
     }
   | {
       type: "end_workout";
@@ -51,12 +61,19 @@ async function persist(): Promise<void> {
   for (const listener of pendingListeners) listener(queue.length);
 }
 
-// Riktiga serverfel (kod från Postgrest, t.ex. RLS-avslag eller en
-// trasig referens) kommer tillbaka som ett objekt med `code` utan att
-// nätverksanropet i sig misslyckades - de ska INTE försökas om för
-// evigt. Ett nätverksfel (offline) har ingen sådan form.
+// Riktiga serverfel (t.ex. RLS-avslag eller en trasig referens) har en
+// IFYLLD `code` från Postgrest/Postgres - "23505", "42501", "PGRST116".
+// De kommer aldrig gå igenom och ska inte försökas om för evigt.
+//
+// Allt annat ska försökas om. Viktigt: postgrest-js sätter `code: ""`
+// (tom sträng, inte avsaknad av fältet) när själva nätverksanropet
+// misslyckas, alltså exakt det som händer offline. Ett svar som inte
+// går att tolka som JSON - t.ex. en 502-sida från en proxy - ger ett
+// fel helt utan `code`. Båda är övergående.
 function isRetryable(err: unknown): boolean {
-  return !(err && typeof err === "object" && typeof (err as { code?: unknown }).code === "string");
+  if (!err || typeof err !== "object") return true;
+  const code = (err as { code?: unknown }).code;
+  return typeof code !== "string" || code === "";
 }
 
 // Skickar en åtgärd i taget till Supabase, i kö-ordning. Ordningen
@@ -64,7 +81,13 @@ function isRetryable(err: unknown): boolean {
 // workout_id som "start_workout" kan ha skapat lokalt. Inserts som
 // kan skickas igen (samma klientgenererade id, eller samma
 // unik-nyckel för set) är upsert - annars skulle ett lyckat men
-// "tappat" svar göra att ett omförsök krockar med sig självt.
+// "tappat" svar göra att ett omförsök krockar med sig självt. Delete
+// på en rad som inte finns är en no-op, så även de tål omförsök.
+//
+// Ordningen gör också redigering/borttagning säker: en "delete_set"
+// som köas medan dess "add_set" fortfarande ligger kvar spelas upp
+// EFTER insert:en, och nettoresultatet blir rätt. En redigering är
+// bara ett nytt "add_set" med samma id och nya värden.
 async function applyAction(action: QueuedAction): Promise<void> {
   switch (action.type) {
     case "start_workout": {
@@ -87,6 +110,9 @@ async function applyAction(action: QueuedAction): Promise<void> {
     case "add_set": {
       const { error } = await supabase.from("sets").upsert(
         {
+          // Saknas id (kö från en äldre appversion) sätter servern det
+          // själv via gen_random_uuid().
+          ...(action.id ? { id: action.id } : {}),
           workout_exercise_id: action.workout_exercise_id,
           set_nr: action.set_nr,
           reps: action.reps,
@@ -94,6 +120,20 @@ async function applyAction(action: QueuedAction): Promise<void> {
         },
         { onConflict: "workout_exercise_id,set_nr" },
       );
+      if (error) throw error;
+      return;
+    }
+    case "delete_set": {
+      const { error } = await supabase.from("sets").delete().eq("id", action.id);
+      if (error) throw error;
+      return;
+    }
+    case "delete_exercise": {
+      // Setsen under övningen städas av `on delete cascade`.
+      const { error } = await supabase
+        .from("workout_exercises")
+        .delete()
+        .eq("id", action.id);
       if (error) throw error;
       return;
     }
@@ -117,6 +157,10 @@ export async function enqueue(action: QueuedAction): Promise<void> {
 
 export async function flush(): Promise<void> {
   if (flushing) return;
+  // Utan nät finns inget att vinna på att försöka - varje åtgärd skulle
+  // bara vänta ut en timeout. onReconnect() nedan kör flush() igen så
+  // fort uppkopplingen är tillbaka.
+  if (!getOnlineStatus()) return;
   flushing = true;
   try {
     await ensureLoaded();

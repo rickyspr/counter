@@ -47,7 +47,7 @@ async function loadExerciseCatalog(): Promise<ExerciseOption[]> {
   }
 }
 
-// De fyra funktionerna nedan skriver ALDRIG direkt mot Supabase.
+// Mutationsfunktionerna nedan skriver ALDRIG direkt mot Supabase.
 // De genererar ett lokalt id och lägger åtgärden i synk-kön (se
 // offline-queue.ts). enqueue() väntar bara in det LOKALA sparandet
 // (millisekunder) innan den returnerar - inte nätverkssynken, som
@@ -91,14 +91,41 @@ export async function addSet(
   setNr: number,
   reps: number,
   weightKg: number,
+): Promise<{ id: string }> {
+  const id = Crypto.randomUUID();
+  await saveSet(id, workoutExerciseId, setNr, reps, weightKg);
+  return { id };
+}
+
+// Att rätta ett redan loggat set är samma åtgärd som att lägga till
+// det: kön skickar en upsert, så samma id + set_nr skriver bara över
+// reps/vikt. Fungerar oavsett om originalet hunnit synkas eller
+// fortfarande ligger kvar i kön.
+export async function saveSet(
+  setId: string,
+  workoutExerciseId: string,
+  setNr: number,
+  reps: number,
+  weightKg: number,
 ): Promise<void> {
   await enqueue({
     type: "add_set",
+    id: setId,
     workout_exercise_id: workoutExerciseId,
     set_nr: setNr,
     reps,
     weight_kg: weightKg,
   });
+}
+
+export async function deleteSet(setId: string): Promise<void> {
+  await enqueue({ type: "delete_set", id: setId });
+}
+
+export async function removeExerciseFromWorkout(
+  workoutExerciseId: string,
+): Promise<void> {
+  await enqueue({ type: "delete_exercise", id: workoutExerciseId });
 }
 
 interface LatestWorkoutSummaryInput {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -15,8 +15,11 @@ import { useSyncStatus } from "../lib/use-sync-status";
 import {
   addExerciseToWorkout,
   addSet,
+  deleteSet,
   endWorkout,
   fetchExerciseCatalog,
+  removeExerciseFromWorkout,
+  saveSet,
   type ExerciseOption,
 } from "../lib/queries";
 
@@ -25,15 +28,52 @@ interface Props {
   onFinish: () => void;
 }
 
+// reps/weightKg är det senast SPARADE värdet, repsDraft/weightDraft är
+// det som just nu står i inmatningsfälten. Ett ogiltigt utkast kan då
+// rullas tillbaka till det sparade värdet utan att något går förlorat.
+interface LoggedSet {
+  id: string;
+  setNr: number;
+  reps: number;
+  weightKg: number;
+  repsDraft: string;
+  weightDraft: string;
+}
+
 interface Section {
   workoutExerciseId: string;
   exerciseName: string;
-  sets: { setNr: number; reps: number; weightKg: number }[];
+  sets: LoggedSet[];
 }
 
 interface SetInput {
   reps: string;
   weight: string;
+}
+
+// Number("") är 0, så tomma fält måste avvisas explicit. Komma
+// accepteras som decimaltecken eftersom UI-språket är svenska.
+function parseAmount(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+// reps är en int-kolumn i Postgres - ett decimaltal skulle avvisas av
+// servern långt senare, när synk-kön spelas upp.
+function parseReps(value: string): number | null {
+  const parsed = parseAmount(value);
+  if (parsed === null || !Number.isInteger(parsed)) return null;
+  return parsed;
+}
+
+function alertInvalidReps() {
+  Alert.alert("Ogiltigt antal reps", "Ange reps som ett helt tal, t.ex. 8.");
+}
+
+function alertInvalidWeight() {
+  Alert.alert("Ogiltig vikt", "Ange vikt i kg som ett tal, t.ex. 60.");
 }
 
 export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
@@ -42,6 +82,19 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
   const [inputs, setInputs] = useState<Record<string, SetInput>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const { online, pendingCount } = useSyncStatus();
+
+  // Nästa lediga set_nr per övning, och nästa lediga order_index för
+  // passet. Båda är monotona och återanvänds ALDRIG, inte ens efter en
+  // borttagning: sets.length + 1 skulle krocka med ett kvarvarande
+  // set_nr (unique (workout_exercise_id, set_nr)) och upserten i
+  // synk-kön skulle då skriva över det setet i tysthet. Samma sak för
+  // order_index mot unique (workout_id, order_index).
+  //
+  // De ligger i refs, inte i state, så att numret kan reserveras
+  // synkront INNAN await:en nedan - annars kan två snabba tryck läsa
+  // samma nummer och det andra setet skriva över det första.
+  const nextSetNr = useRef<Record<string, number>>({});
+  const nextOrderIndex = useRef(0);
 
   useEffect(() => {
     // Om detta misslyckas finns varken nät eller en sparad kopia av
@@ -57,18 +110,21 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
       );
   }, []);
 
-  // addExerciseToWorkout/addSet/endWorkout skriver via en lokal synk-kö
-  // (se lib/offline-queue.ts) - de väntar bara in det lokala sparandet
+  // Skrivfunktionerna nedan går via en lokal synk-kö (se
+  // lib/offline-queue.ts) - de väntar bara in det lokala sparandet
   // (millisekunder), inte nätverket, så hela passet går att logga
   // offline utan märkbar fördröjning.
   async function handlePickExercise(exercise: ExerciseOption) {
     setPickerOpen(false);
+    const orderIndex = nextOrderIndex.current;
+    nextOrderIndex.current += 1;
     try {
       const workoutExercise = await addExerciseToWorkout(
         workoutId,
         exercise.id,
-        sections.length,
+        orderIndex,
       );
+      nextSetNr.current[workoutExercise.id] = 1;
       setSections((prev) => [
         ...prev,
         {
@@ -102,25 +158,45 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
 
   async function handleAddSet(section: Section) {
     const values = inputs[section.workoutExerciseId];
-    const reps = Number(values?.reps);
-    const weightKg = Number(values?.weight);
+    const reps = parseReps(values?.reps ?? "");
+    const weightKg = parseAmount(values?.weight ?? "");
 
-    if (!Number.isFinite(reps) || reps < 0) {
-      Alert.alert("Ogiltigt antal reps", "Ange reps som ett tal, t.ex. 8.");
+    if (reps === null) {
+      alertInvalidReps();
       return;
     }
-    if (!Number.isFinite(weightKg) || weightKg < 0) {
-      Alert.alert("Ogiltig vikt", "Ange vikt i kg som ett tal, t.ex. 60.");
+    if (weightKg === null) {
+      alertInvalidWeight();
       return;
     }
 
-    const setNr = section.sets.length + 1;
+    // Reservera numret synkront, före await:en.
+    const setNr = nextSetNr.current[section.workoutExerciseId] ?? 1;
+    nextSetNr.current[section.workoutExerciseId] = setNr + 1;
     try {
-      await addSet(section.workoutExerciseId, setNr, reps, weightKg);
+      const { id } = await addSet(
+        section.workoutExerciseId,
+        setNr,
+        reps,
+        weightKg,
+      );
       setSections((prev) =>
         prev.map((s) =>
           s.workoutExerciseId === section.workoutExerciseId
-            ? { ...s, sets: [...s.sets, { setNr, reps, weightKg }] }
+            ? {
+                ...s,
+                sets: [
+                  ...s.sets,
+                  {
+                    id,
+                    setNr,
+                    reps,
+                    weightKg,
+                    repsDraft: String(reps),
+                    weightDraft: String(weightKg),
+                  },
+                ],
+              }
             : s,
         ),
       );
@@ -136,8 +212,207 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
     }
   }
 
-  async function handleFinish() {
+  function updateSetDraft(
+    workoutExerciseId: string,
+    setId: string,
+    field: "repsDraft" | "weightDraft",
+    value: string,
+  ) {
+    setSections((prev) =>
+      prev.map((section) =>
+        section.workoutExerciseId === workoutExerciseId
+          ? {
+              ...section,
+              sets: section.sets.map((s) =>
+                s.id === setId ? { ...s, [field]: value } : s,
+              ),
+            }
+          : section,
+      ),
+    );
+  }
+
+  function revertSetDraft(workoutExerciseId: string, setId: string) {
+    setSections((prev) =>
+      prev.map((section) =>
+        section.workoutExerciseId === workoutExerciseId
+          ? {
+              ...section,
+              sets: section.sets.map((s) =>
+                s.id === setId
+                  ? {
+                      ...s,
+                      repsDraft: String(s.reps),
+                      weightDraft: String(s.weightKg),
+                    }
+                  : s,
+              ),
+            }
+          : section,
+      ),
+    );
+  }
+
+  // Körs när ett fält tappar fokus. Oförändrade värden sparas inte om.
+  async function commitSetEdit(section: Section, set: LoggedSet) {
+    const reps = parseReps(set.repsDraft);
+    const weightKg = parseAmount(set.weightDraft);
+
+    if (reps === null || weightKg === null) {
+      revertSetDraft(section.workoutExerciseId, set.id);
+      if (reps === null) alertInvalidReps();
+      else alertInvalidWeight();
+      return;
+    }
+    if (reps === set.reps && weightKg === set.weightKg) return;
+
     try {
+      await saveSet(
+        set.id,
+        section.workoutExerciseId,
+        set.setNr,
+        reps,
+        weightKg,
+      );
+      setSections((prev) =>
+        prev.map((s) =>
+          s.workoutExerciseId === section.workoutExerciseId
+            ? {
+                ...s,
+                sets: s.sets.map((existing) =>
+                  existing.id === set.id
+                    ? {
+                        ...existing,
+                        reps,
+                        weightKg,
+                        repsDraft: String(reps),
+                        weightDraft: String(weightKg),
+                      }
+                    : existing,
+                ),
+              }
+            : s,
+        ),
+      );
+    } catch (err) {
+      revertSetDraft(section.workoutExerciseId, set.id);
+      Alert.alert(
+        "Kunde inte spara ändringen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    }
+  }
+
+  function confirmDeleteSet(section: Section, set: LoggedSet, label: number) {
+    Alert.alert(
+      "Ta bort set?",
+      `Set ${label} (${set.reps} reps × ${set.weightKg} kg) tas bort. Det går inte att ångra.`,
+      [
+        { text: "Avbryt", style: "cancel" },
+        {
+          text: "Ta bort",
+          style: "destructive",
+          onPress: () => void handleDeleteSet(section, set),
+        },
+      ],
+    );
+  }
+
+  async function handleDeleteSet(section: Section, set: LoggedSet) {
+    try {
+      await deleteSet(set.id);
+      // nextSetNr rörs inte - numret får aldrig återanvändas.
+      setSections((prev) =>
+        prev.map((s) =>
+          s.workoutExerciseId === section.workoutExerciseId
+            ? { ...s, sets: s.sets.filter((existing) => existing.id !== set.id) }
+            : s,
+        ),
+      );
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte ta bort setet",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    }
+  }
+
+  function confirmRemoveExercise(section: Section) {
+    const setCount = section.sets.length;
+    Alert.alert(
+      "Ta bort övning?",
+      setCount === 0
+        ? `${section.exerciseName} tas bort från passet.`
+        : `${section.exerciseName} och dess ${setCount} set tas bort. Det går inte att ångra.`,
+      [
+        { text: "Avbryt", style: "cancel" },
+        {
+          text: "Ta bort",
+          style: "destructive",
+          onPress: () => void handleRemoveExercise(section),
+        },
+      ],
+    );
+  }
+
+  async function handleRemoveExercise(section: Section) {
+    try {
+      await removeExerciseFromWorkout(section.workoutExerciseId);
+      // nextOrderIndex och räknaren för övningen rörs inte - numren
+      // får aldrig återanvändas.
+      delete nextSetNr.current[section.workoutExerciseId];
+      setSections((prev) =>
+        prev.filter(
+          (s) => s.workoutExerciseId !== section.workoutExerciseId,
+        ),
+      );
+      setInputs((prev) => {
+        const next = { ...prev };
+        delete next[section.workoutExerciseId];
+        return next;
+      });
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte ta bort övningen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    }
+  }
+
+  async function handleFinish() {
+    // Ett tryck på "Avsluta pass" triggar inte pålitligt onBlur på ett
+    // fokuserat fält, så osparade ändringar måste fångas upp här.
+    const writes: Promise<void>[] = [];
+    let hasInvalidDraft = false;
+
+    const committed = sections.map((section) => ({
+      ...section,
+      sets: section.sets.map((set) => {
+        const reps = parseReps(set.repsDraft);
+        const weightKg = parseAmount(set.weightDraft);
+        if (reps === null || weightKg === null) {
+          hasInvalidDraft = true;
+          return set;
+        }
+        if (reps === set.reps && weightKg === set.weightKg) return set;
+        writes.push(
+          saveSet(set.id, section.workoutExerciseId, set.setNr, reps, weightKg),
+        );
+        return { ...set, reps, weightKg };
+      }),
+    }));
+
+    if (hasInvalidDraft) {
+      Alert.alert(
+        "Rätta setet först",
+        "Något set har ett ogiltigt värde för reps eller vikt.",
+      );
+      return;
+    }
+
+    try {
+      await Promise.all(writes);
+      setSections(committed);
       await endWorkout(workoutId);
       onFinish();
     } catch (err) {
@@ -155,12 +430,70 @@ export function ActiveWorkoutScreen({ workoutId, onFinish }: Props) {
 
         {sections.map((section) => (
           <View key={section.workoutExerciseId} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.exerciseName}</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.exerciseName}</Text>
+              <TouchableOpacity onPress={() => confirmRemoveExercise(section)}>
+                <Text style={styles.removeExerciseText}>Ta bort övning</Text>
+              </TouchableOpacity>
+            </View>
 
-            {section.sets.map((s) => (
-              <Text key={s.setNr} style={styles.setRow}>
-                Set {s.setNr}: {s.reps} reps × {s.weightKg} kg
-              </Text>
+            {section.sets.length > 0 && (
+              <View style={styles.setRow}>
+                <Text style={[styles.setLabel, styles.columnHeader]} />
+                <Text style={[styles.columnHeader, styles.columnHeaderCell]}>
+                  Reps
+                </Text>
+                <Text style={[styles.columnHeader, styles.columnHeaderCell]}>
+                  Kg
+                </Text>
+                <View style={styles.deleteButton} />
+              </View>
+            )}
+
+            {/* Etiketten är radens position, inte set_nr - set_nr kan ha
+                luckor efter en borttagning men användaren ska alltid se
+                Set 1, 2, 3. Nyckeln måste vara id:t: med setNr eller
+                index tappar fälten fokus och visar fel värde när ett
+                set tas bort. */}
+            {section.sets.map((s, index) => (
+              <View key={s.id} style={styles.setRow}>
+                <Text style={styles.setLabel}>Set {index + 1}</Text>
+                <TextInput
+                  style={styles.smallInput}
+                  keyboardType="numeric"
+                  value={s.repsDraft}
+                  onChangeText={(text) =>
+                    updateSetDraft(
+                      section.workoutExerciseId,
+                      s.id,
+                      "repsDraft",
+                      text,
+                    )
+                  }
+                  onBlur={() => void commitSetEdit(section, s)}
+                />
+                <TextInput
+                  style={styles.smallInput}
+                  keyboardType="numeric"
+                  value={s.weightDraft}
+                  onChangeText={(text) =>
+                    updateSetDraft(
+                      section.workoutExerciseId,
+                      s.id,
+                      "weightDraft",
+                      text,
+                    )
+                  }
+                  onBlur={() => void commitSetEdit(section, s)}
+                />
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  accessibilityLabel={`Ta bort set ${index + 1}`}
+                  onPress={() => confirmDeleteSet(section, s, index + 1)}
+                >
+                  <Text style={styles.deleteButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
             ))}
 
             <View style={styles.setForm}>
@@ -264,12 +597,46 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
+    flexShrink: 1,
+  },
+  removeExerciseText: {
+    color: "#b91c1c",
+    fontWeight: "600",
   },
   setRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  setLabel: {
+    width: 52,
     color: "#374151",
+  },
+  columnHeader: {
+    color: "#6b7280",
+    fontSize: 12,
+  },
+  columnHeaderCell: {
+    flex: 1,
+  },
+  deleteButton: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteButtonText: {
+    color: "#b91c1c",
+    fontSize: 18,
+    fontWeight: "600",
   },
   setForm: {
     flexDirection: "row",
@@ -278,6 +645,7 @@ const styles = StyleSheet.create({
   },
   smallInput: {
     flex: 1,
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 8,
