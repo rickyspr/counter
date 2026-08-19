@@ -11,6 +11,7 @@ export interface ExerciseOption {
 }
 
 const EXERCISE_CACHE_KEY = "repcount:exercise-cache";
+const PREVIOUS_SETS_CACHE_PREFIX = "repcount:previous-sets:";
 
 // Övningskatalogen ändras sällan, så vi cachar den lokalt och faller
 // tillbaka på cachen om nätverket är nere - annars går det inte att
@@ -86,20 +87,16 @@ export async function addExerciseToWorkout(
   return { id, exercise_id: exerciseId };
 }
 
-export async function addSet(
-  workoutExerciseId: string,
-  setNr: number,
-  reps: number,
-  weightKg: number,
-): Promise<{ id: string }> {
-  const id = Crypto.randomUUID();
-  await saveSet(id, workoutExerciseId, setNr, reps, weightKg);
-  return { id };
+// Set-raden skapas i UI:t innan den fyllts i, så id:t måste finnas
+// före första sparandet. Samma mönster som workouts/workout_exercises:
+// klienten äger primärnyckeln.
+export function newSetId(): string {
+  return Crypto.randomUUID();
 }
 
-// Att rätta ett redan loggat set är samma åtgärd som att lägga till
-// det: kön skickar en upsert, så samma id + set_nr skriver bara över
-// reps/vikt. Fungerar oavsett om originalet hunnit synkas eller
+// Både att spara ett nytt set och att rätta ett befintligt är samma
+// åtgärd: kön skickar en upsert, så samma id + set_nr skriver bara
+// över reps/vikt. Fungerar oavsett om raden hunnit synkas eller
 // fortfarande ligger kvar i kön.
 export async function saveSet(
   setId: string,
@@ -126,6 +123,54 @@ export async function removeExerciseFromWorkout(
   workoutExerciseId: string,
 ): Promise<void> {
   await enqueue({ type: "delete_exercise", id: workoutExerciseId });
+}
+
+export interface PreviousSet {
+  reps: number;
+  weightKg: number;
+}
+
+// Skuggvärden till set-raderna: vad användaren körde på samma övning
+// förra avslutade passet, så man kan sikta på att slå det. Rent stöd -
+// misslyckas både nätet och cachen visas inga skuggvärden och INGET
+// fel, eftersom det inte är data användaren matat in.
+export async function fetchPreviousSetsForExercise(
+  userId: string,
+  exerciseId: string,
+): Promise<PreviousSet[]> {
+  const cacheKey = `${PREVIOUS_SETS_CACHE_PREFIX}${exerciseId}`;
+  try {
+    const { data, error } = await supabase
+      .from("workouts")
+      .select(
+        "started_at, workout_exercises!inner(order_index, exercise_id, sets(set_nr, reps, weight_kg))",
+      )
+      .eq("user_id", userId)
+      .eq("workout_exercises.exercise_id", exerciseId)
+      // Utesluter det pågående passet - det har inget ended_at än.
+      .not("ended_at", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+
+    // Samma övning kan förekomma två gånger i ett pass; ta den första.
+    const workoutExercise = [...(data?.workout_exercises ?? [])].sort(
+      (a, b) => a.order_index - b.order_index,
+    )[0];
+
+    // set_nr kan ha luckor efter en borttagning, så sortera på set_nr
+    // och använd sedan POSITION - rad 1 får första setet oavsett nummer.
+    const sets: PreviousSet[] = [...(workoutExercise?.sets ?? [])]
+      .sort((a, b) => a.set_nr - b.set_nr)
+      .map((row) => ({ reps: row.reps, weightKg: row.weight_kg }));
+
+    await writeJSON(cacheKey, sets);
+    return sets;
+  } catch {
+    // Offline: falla tillbaka på det som hämtades senast appen hade nät.
+    return readJSON<PreviousSet[]>(cacheKey, []);
+  }
 }
 
 interface LatestWorkoutSummaryInput {

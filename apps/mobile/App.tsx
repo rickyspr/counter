@@ -36,6 +36,7 @@ function AppContent() {
   if (screen.name === "workout") {
     return (
       <ActiveWorkoutScreen
+        userId={session.user.id}
         workoutId={screen.workoutId}
         onFinish={() => setScreen({ name: "home" })}
       />
