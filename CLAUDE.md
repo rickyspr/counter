@@ -88,6 +88,18 @@ RLS on all tables: users can only see/change their own rows (global
       AsyncStorage sync queue (`apps/mobile/lib/offline-queue.ts`)
       that replays against Supabase once online. Browsing history/
       stats still requires a connection - not in scope
+- [x] Edit and delete a logged set while the workout is still
+      active, plus removing a whole exercise. `set_nr` and
+      `order_index` are monotonic counters that are never reused -
+      gaps are harmless since no stats function reads `set_nr`, and
+      rows are labelled by position
+- [x] Row-first set entry: "Lägg till set" appends an empty row that
+      is filled in place, instead of a separate form. A row is only
+      written once both fields parse, and "Avsluta pass" refuses to
+      finish while anything is blank, half-filled or unparseable.
+      Each row hints the matching set from the previous workout as a
+      greyed placeholder (`fetchPreviousSetsForExercise`, cached per
+      exercise so it survives being offline)
 
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google
