@@ -34,6 +34,10 @@ type QueuedAction =
       id: string;
     }
   | {
+      type: "delete_workout";
+      workout_id: string;
+    }
+  | {
       type: "end_workout";
       workout_id: string;
       ended_at: string;
@@ -134,6 +138,18 @@ async function applyAction(action: QueuedAction): Promise<void> {
         .from("workout_exercises")
         .delete()
         .eq("id", action.id);
+      if (error) throw error;
+      return;
+    }
+    case "delete_workout": {
+      // Övningarna och deras sets städas av `on delete cascade`. Ligger
+      // passets egna "start_workout"/"add_set" kvar längre fram i kön
+      // spelas de upp FÖRE den här (FIFO), så raderingen städar bort
+      // dem efteråt och nettoresultatet blir rätt.
+      const { error } = await supabase
+        .from("workouts")
+        .delete()
+        .eq("id", action.workout_id);
       if (error) throw error;
       return;
     }

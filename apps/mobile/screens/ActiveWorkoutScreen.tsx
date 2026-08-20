@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -15,8 +16,15 @@ import {
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { useSyncStatus } from "../lib/use-sync-status";
 import {
+  clearActiveWorkout,
+  loadActiveWorkout,
+  saveActiveWorkout,
+  type ActiveWorkout,
+} from "../lib/active-workout";
+import {
   addExerciseToWorkout,
   deleteSet,
+  deleteWorkout,
   endWorkout,
   fetchExerciseCatalog,
   fetchPreviousSetsForExercise,
@@ -31,6 +39,7 @@ interface Props {
   userId: string;
   workoutId: string;
   onFinish: () => void;
+  onDiscard: () => void;
 }
 
 // En rad skapas av "Lägg till set" innan den fyllts i, så den finns
@@ -83,10 +92,18 @@ function parseSetDrafts(
   return { reps, weightKg };
 }
 
-export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
+export function ActiveWorkoutScreen({
+  userId,
+  workoutId,
+  onFinish,
+  onDiscard,
+}: Props) {
   const [catalog, setCatalog] = useState<ExerciseOption[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Tills det sparade passet lästs in får ingenting sparas tillbaka -
+  // se hydreringen nedan.
+  const [hydrated, setHydrated] = useState(false);
   // Raden som just skapats och ska få markören.
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   // Rader som varningen vid avslut pekat ut. Markeras röda. Sätts först
@@ -108,6 +125,79 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
   const nextSetNr = useRef<Record<string, number>>({});
   const nextOrderIndex = useRef(0);
   const firstInputs = useRef<Record<string, TextInput | null>>({});
+  // startedAt ägs av den sparade blobben (HomeScreen skriver den när
+  // passet startas) och skickas bara tillbaka oförändrad vid varje spar.
+  const startedAt = useRef(new Date().toISOString());
+  // Sätts när passet avslutats eller avbrutits. Avväpnar spar-effekten
+  // så att en sen setSections (t.ex. ett commitSetEdit som landar mellan
+  // rensningen och att skärmen försvinner) inte kan skriva tillbaka
+  // blobben och få ett FÄRDIGT pass att dyka upp som "pågående" igen.
+  const finished = useRef(false);
+
+  // Läser tillbaka passet från disk. HomeScreen skriver alltid en blob
+  // när passet startas, så det här är samma kodväg för ett splitternytt
+  // pass som för ett återupptaget - skillnaden är bara att sections är
+  // tom i det första fallet.
+  useEffect(() => {
+    let cancelled = false;
+    loadActiveWorkout(userId)
+      .then((stored) => {
+        if (cancelled) return;
+        if (stored && stored.workoutId === workoutId) {
+          nextOrderIndex.current = stored.nextOrderIndex;
+          nextSetNr.current = { ...stored.nextSetNr };
+          startedAt.current = stored.startedAt;
+          setSections(stored.sections);
+        }
+        setHydrated(true);
+      })
+      .catch(() => {
+        if (!cancelled) setHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, workoutId]);
+
+  function snapshot(currentSections: Section[]): ActiveWorkout {
+    return {
+      version: 1,
+      userId,
+      workoutId,
+      startedAt: startedAt.current,
+      nextOrderIndex: nextOrderIndex.current,
+      nextSetNr: nextSetNr.current,
+      sections: currentSections,
+    };
+  }
+
+  // Skriver blobben direkt istället för att vänta på spar-effekten.
+  // Fel sväljs INTE här: kan räknaren inte sparas ska åtgärden som
+  // förbrukar den inte köas heller.
+  function persistCounters(): Promise<void> {
+    return saveActiveWorkout(snapshot(sections));
+  }
+
+  // Sparar hela skärmtillståndet vid varje ändring, så ett pass
+  // överlever att appen swipas bort.
+  //
+  // `hydrated`-vakten är inte valfri: utan den skriver den här effekten
+  // sections: [] över den sparade blobben direkt vid mount, alltså
+  // raderas passet i samma ögonblick som man försöker återuppta det.
+  //
+  // Att bara lyssna på `sections` räcker för att fånga räknarna också:
+  // varje mutation av nextSetNr/nextOrderIndex följs av ett setSections
+  // i samma handler (handlePickExercise, handleCreateSetRow,
+  // handleRemoveExercise), så refarna är alltid färska när effekten kör.
+  useEffect(() => {
+    if (!hydrated || finished.current) return;
+    saveActiveWorkout(snapshot(sections)).catch(() => {
+      // Tyst med flit: det här körs vid varje tangenttryck, och en
+      // dialog per tecken vore både omöjlig att jobba i och något
+      // användaren ändå inte kan göra något åt. Själva passet ligger
+      // redan säkert i synk-kön - det som riskeras är återupptagningen.
+    });
+  }, [hydrated, sections, userId, workoutId]);
 
   useEffect(() => {
     // Om detta misslyckas finns varken nät eller en sparad kopia av
@@ -131,6 +221,14 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
     const orderIndex = nextOrderIndex.current;
     nextOrderIndex.current += 1;
     try {
+      // Den förbrukade räknaren måste nå disken INNAN åtgärden köas,
+      // inte via spar-effekten några tick senare. Dör appen i glappet
+      // ligger order_index = n i kön medan blobben fortfarande säger
+      // "nästa lediga är n", och nästa övning får samma nummer. Då
+      // fäller unique (workout_id, order_index) upserten med 23505 -
+      // ett permanent fel, så kön SLÄNGER åtgärden, och setsen under
+      // övningen ryker med den på sin trasiga referens.
+      await persistCounters();
       const workoutExercise = await addExerciseToWorkout(
         workoutId,
         exercise.id,
@@ -447,13 +545,71 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
       );
       setSections(committed);
       await endWorkout(workoutId);
-      onFinish();
     } catch (err) {
       Alert.alert(
         "Kunde inte avsluta passet",
         err instanceof Error ? err.message : "Okänt fel.",
       );
+      return;
     }
+
+    // Härifrån ÄR passet avslutat. Rensningen ligger utanför try:n ovan
+    // med flit: misslyckas den får det inte se ut som att avslutet
+    // misslyckades, för då skulle användaren bli kvar på ett pass som
+    // redan är avslutat - och kunna trycka "Släng" på det senare.
+    finished.current = true;
+    await clearActiveWorkout().catch(() => {});
+    onFinish();
+  }
+
+  function confirmDiscardWorkout() {
+    const setCount = sections.reduce(
+      (total, section) =>
+        total + section.sets.filter((s) => s.saved !== null).length,
+      0,
+    );
+    Alert.alert(
+      "Avbryt pass?",
+      setCount === 0
+        ? "Passet tas bort. Det går inte att ångra."
+        : `Passet och dess ${setCount} loggade set tas bort. Det går inte att ångra.`,
+      [
+        { text: "Fortsätt passet", style: "cancel" },
+        {
+          text: "Avbryt pass",
+          style: "destructive",
+          onPress: () => void handleDiscardWorkout(),
+        },
+      ],
+    );
+  }
+
+  async function handleDiscardWorkout() {
+    try {
+      await deleteWorkout(workoutId);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte avbryta passet",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+      return;
+    }
+
+    // Samma resonemang som i handleFinish: raderingen är beställd, så
+    // passet ska inte ligga kvar som pågående även om rensningen strular.
+    finished.current = true;
+    await clearActiveWorkout().catch(() => {});
+    onDiscard();
+  }
+
+  // Att rendera passet innan blobben lästs in skulle visa ett tomt pass
+  // i ett ögonblick även när det finns set att återuppta.
+  if (!hydrated) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator />
+      </View>
+    );
   }
 
   return (
@@ -566,6 +722,10 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
         >
           <Text style={styles.secondaryButtonText}>Lägg till övning</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity onPress={confirmDiscardWorkout}>
+          <Text style={styles.discardText}>Avbryt pass</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <SyncStatusBanner
@@ -615,6 +775,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 24,
     gap: 16,
+  },
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   scroll: {
     gap: 16,
@@ -706,6 +870,11 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: "#111827",
     fontWeight: "600",
+  },
+  discardText: {
+    textAlign: "center",
+    color: "#b91c1c",
+    paddingVertical: 8,
   },
   finishButton: {
     backgroundColor: "#b91c1c",

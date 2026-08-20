@@ -125,6 +125,13 @@ export async function removeExerciseFromWorkout(
   await enqueue({ type: "delete_exercise", id: workoutExerciseId });
 }
 
+// Slänger ett pass helt: raden i workouts plus allt under den, via
+// `on delete cascade`. Används när man avbryter ett pågående pass eller
+// slänger ett återupptaget - aldrig för ett avslutat.
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  await enqueue({ type: "delete_workout", workout_id: workoutId });
+}
+
 export interface PreviousSet {
   reps: number;
   weightKg: number;

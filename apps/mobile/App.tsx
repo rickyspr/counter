@@ -12,6 +12,7 @@ type Screen = { name: "home" } | { name: "workout"; workoutId: string };
 function AppContent() {
   const { session, loading } = useAuth();
   const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const userId = session?.user.id;
 
   useEffect(
     () =>
@@ -20,6 +21,14 @@ function AppContent() {
       }),
     [],
   );
+
+  // Utan detta ligger `screen` kvar över en utloggning. Det syns inte
+  // direkt (LoginScreen returneras före workout-grenen nedan), men
+  // loggar någon annan in på samma telefon renderas pass-skärmen med
+  // föregående användares workoutId.
+  useEffect(() => {
+    setScreen({ name: "home" });
+  }, [userId]);
 
   if (loading) {
     return (
@@ -39,6 +48,7 @@ function AppContent() {
         userId={session.user.id}
         workoutId={screen.workoutId}
         onFinish={() => setScreen({ name: "home" })}
+        onDiscard={() => setScreen({ name: "home" })}
       />
     );
   }
@@ -46,7 +56,7 @@ function AppContent() {
   return (
     <HomeScreen
       userId={session.user.id}
-      onStartWorkout={(workoutId) => setScreen({ name: "workout", workoutId })}
+      onOpenWorkout={(workoutId) => setScreen({ name: "workout", workoutId })}
     />
   );
 }

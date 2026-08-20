@@ -100,6 +100,22 @@ RLS on all tables: users can only see/change their own rows (global
       Each row hints the matching set from the previous workout as a
       greyed placeholder (`fetchPreviousSetsForExercise`, cached per
       exercise so it survives being offline)
+- [x] Resume an active workout after the app is closed. The whole
+      screen state is mirrored to AsyncStorage
+      (`apps/mobile/lib/active-workout.ts`) on every change, and
+      HomeScreen offers it as "Fortsätt / Släng". Querying the server
+      for `ended_at is null` would not do: the workout may exist only
+      in the sync queue, half-filled rows are deliberately never
+      written, and the monotonic `set_nr`/`order_index` counters cannot
+      be rebuilt from the surviving rows after a delete - so they are
+      persisted verbatim. A workout older than 24h stops being offered
+      but is NOT deleted - only the local blob is dropped, since a real
+      workout the user just forgot to end must not be destroyed by a
+      timer. Actually deleting is always a deliberate choice ("Släng" /
+      "Avbryt pass"), via `delete_workout` in the queue relying on
+      `on delete cascade`. "Starta nytt pass" is hidden while a workout
+      is active: there is only one slot, so a new one would overwrite
+      the old beyond reach
 
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google
