@@ -107,7 +107,7 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
   // nummer och det andra setet skriva över det första.
   const nextSetNr = useRef<Record<string, number>>({});
   const nextOrderIndex = useRef(0);
-  const repsInputs = useRef<Record<string, TextInput | null>>({});
+  const firstInputs = useRef<Record<string, TextInput | null>>({});
 
   useEffect(() => {
     // Om detta misslyckas finns varken nät eller en sparad kopia av
@@ -175,7 +175,7 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
     if (last && last.saved === null && parseSetDrafts(last) === null) {
       // Det finns redan en outfylld rad - flytta markören dit istället
       // för att stapla tomma rader ovanpå varandra.
-      repsInputs.current[last.id]?.focus();
+      firstInputs.current[last.id]?.focus();
       return;
     }
 
@@ -280,7 +280,7 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
       ),
     );
     setFlaggedSetIds((prev) => prev.filter((id) => id !== set.id));
-    delete repsInputs.current[set.id];
+    delete firstInputs.current[set.id];
   }
 
   function confirmDeleteSet(section: Section, set: LoggedSet, label: number) {
@@ -342,7 +342,7 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
       // aldrig återanvändas.
       delete nextSetNr.current[section.workoutExerciseId];
       const removedIds = new Set(section.sets.map((s) => s.id));
-      for (const id of removedIds) delete repsInputs.current[id];
+      for (const id of removedIds) delete firstInputs.current[id];
       setSections((prev) =>
         prev.filter((s) => s.workoutExerciseId !== section.workoutExerciseId),
       );
@@ -424,7 +424,7 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
           {
             text: "OK",
             onPress: () => {
-              if (firstSetId) repsInputs.current[firstSetId]?.focus();
+              if (firstSetId) firstInputs.current[firstSetId]?.focus();
             },
           },
         ],
@@ -482,10 +482,10 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
               <View style={styles.setRow}>
                 <Text style={styles.setLabel} />
                 <Text style={[styles.columnHeader, styles.columnHeaderCell]}>
-                  Reps
+                  Kg
                 </Text>
                 <Text style={[styles.columnHeader, styles.columnHeaderCell]}>
-                  Kg
+                  Reps
                 </Text>
                 <View style={styles.deleteButton} />
               </View>
@@ -505,28 +505,12 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
                   <Text style={styles.setLabel}>Set {index + 1}</Text>
                   <TextInput
                     ref={(el) => {
-                      repsInputs.current[s.id] = el;
+                      firstInputs.current[s.id] = el;
                     }}
                     style={[styles.smallInput, flagged && styles.inputFlagged]}
                     keyboardType="numeric"
                     autoFocus={s.id === pendingFocusId}
                     onFocus={() => setPendingFocusId(null)}
-                    placeholder={previous ? String(previous.reps) : ""}
-                    placeholderTextColor="#9ca3af"
-                    value={s.repsDraft}
-                    onChangeText={(text) =>
-                      updateSetDraft(
-                        section.workoutExerciseId,
-                        s.id,
-                        "repsDraft",
-                        text,
-                      )
-                    }
-                    onBlur={() => void commitSetEdit(section, s)}
-                  />
-                  <TextInput
-                    style={[styles.smallInput, flagged && styles.inputFlagged]}
-                    keyboardType="numeric"
                     placeholder={previous ? String(previous.weightKg) : ""}
                     placeholderTextColor="#9ca3af"
                     value={s.weightDraft}
@@ -535,6 +519,22 @@ export function ActiveWorkoutScreen({ userId, workoutId, onFinish }: Props) {
                         section.workoutExerciseId,
                         s.id,
                         "weightDraft",
+                        text,
+                      )
+                    }
+                    onBlur={() => void commitSetEdit(section, s)}
+                  />
+                  <TextInput
+                    style={[styles.smallInput, flagged && styles.inputFlagged]}
+                    keyboardType="numeric"
+                    placeholder={previous ? String(previous.reps) : ""}
+                    placeholderTextColor="#9ca3af"
+                    value={s.repsDraft}
+                    onChangeText={(text) =>
+                      updateSetDraft(
+                        section.workoutExerciseId,
+                        s.id,
+                        "repsDraft",
                         text,
                       )
                     }
