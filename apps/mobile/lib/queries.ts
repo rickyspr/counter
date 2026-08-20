@@ -1,4 +1,8 @@
-import type { SetRecord } from "@repcount/shared";
+import {
+  summarizeWorkout,
+  type SetRecord,
+  type WorkoutSummary,
+} from "@repcount/shared";
 import * as Crypto from "expo-crypto";
 import { enqueue } from "./offline-queue";
 import { readJSON, writeJSON } from "./storage";
@@ -235,4 +239,90 @@ export async function fetchLatestWorkoutSummaryInput(
   }));
 
   return { workout, sets };
+}
+
+export const WORKOUT_HISTORY_PAGE_SIZE = 20;
+
+export interface HistoryExercise {
+  workoutExerciseId: string;
+  name: string;
+  // I positionsordning. set_nr kan ha luckor efter en borttagning, så
+  // raderna märks med sin POSITION i vyn - aldrig med set_nr.
+  sets: { reps: number; weightKg: number }[];
+}
+
+export interface WorkoutHistoryEntry {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  summary: WorkoutSummary;
+  exercises: HistoryExercise[];
+}
+
+// En sida av passhistoriken, med alla set inbäddade i SAMMA anrop -
+// samma mönster som fetchPreviousSetsForExercise ovan. Att setsen följer
+// med direkt är hela poängen: detaljvyn behöver ingen egen fråga, utan
+// renderar ur det som listan redan laddat.
+//
+// Kräver nätverk, som resten av historik/statistik (se CLAUDE.md).
+//
+// Sidindelningen är offset-baserad. Det driver om rader försvinner
+// mellan två sidhämtningar: allt under flyttas upp och raden som hamnar
+// på sista platsen hoppas över helt. Det är ofarligt så länge inget kan
+// radera ett AVSLUTAT pass - "Släng"/"Avbryt pass" träffar bara det
+// pågående, som filtret nedan redan utesluter. Skulle det någon gång gå
+// att radera ur historiken måste det här bli keyset-paginering
+// (started_at + id som brytpunkt).
+export async function fetchWorkoutHistory(
+  userId: string,
+  offset: number,
+  limit: number = WORKOUT_HISTORY_PAGE_SIZE,
+): Promise<WorkoutHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(
+      "id, started_at, ended_at, workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg))",
+    )
+    .eq("user_id", userId)
+    // Repots konvention för "avslutade pass" - utesluter också det pass
+    // som just nu pågår.
+    .not("ended_at", "is", null)
+    .order("started_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+
+  return (data ?? []).map((workout) => {
+    const workoutExercises = [...(workout.workout_exercises ?? [])].sort(
+      (a, b) => a.order_index - b.order_index,
+    );
+
+    const exercises: HistoryExercise[] = workoutExercises.map((we) => ({
+      workoutExerciseId: we.id,
+      name: we.exercises?.name ?? "Okänd övning",
+      sets: [...(we.sets ?? [])]
+        .sort((a, b) => a.set_nr - b.set_nr)
+        .map((s) => ({ reps: s.reps, weightKg: s.weight_kg })),
+    }));
+
+    // summarizeWorkout läser bara reps, weight_kg och exercise_id ur
+    // varje SetRecord - resten krävs av typen men ignoreras, så de fylls
+    // i från passet.
+    const setRecords: SetRecord[] = workoutExercises.flatMap((we) =>
+      (we.sets ?? []).map((s) => ({
+        reps: s.reps,
+        weight_kg: s.weight_kg,
+        exercise_id: we.exercise_id,
+        workout_id: workout.id,
+        workout_started_at: workout.started_at,
+      })),
+    );
+
+    return {
+      id: workout.id,
+      startedAt: workout.started_at,
+      endedAt: workout.ended_at,
+      summary: summarizeWorkout(workout, setRecords),
+      exercises,
+    };
+  });
 }

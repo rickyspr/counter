@@ -25,7 +25,6 @@ import {
   fetchLatestWorkoutSummaryInput,
   startWorkout,
 } from "../lib/queries";
-import { supabase } from "../lib/supabase";
 
 interface Props {
   userId: string;
@@ -225,10 +224,6 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
           <Text style={styles.buttonText}>Starta nytt pass</Text>
         </TouchableOpacity>
       )}
-
-      <TouchableOpacity onPress={() => supabase.auth.signOut()}>
-        <Text style={styles.signOutText}>Logga ut</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -350,9 +345,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  signOutText: {
-    textAlign: "center",
-    color: "#b91c1c",
   },
 });

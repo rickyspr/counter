@@ -160,7 +160,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_training_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          workout_count: number
+          total_volume_kg: number
+          total_minutes: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

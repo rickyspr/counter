@@ -40,6 +40,16 @@ RLS on all tables: users can only see/change their own rows (global
 - Over time: volume per week, workout frequency, PB per exercise
   (heaviest set and best e1RM), progression per exercise.
 
+One exception lives in the database: `get_training_stats()` (RPC,
+`supabase/migrations/20260820120000_training_stats.sql`) returns
+lifetime totals for the profile page. Client-side would mean
+downloading every set, and the Data API silently truncates responses
+over 1000 rows. It is `security invoker` with an explicit
+`auth.uid()` filter — `security definer` would bypass RLS and hand
+out everyone's numbers. Per-workout volume is a correlated subquery,
+not a join: joining sets alongside the workout would multiply each
+workout's duration by its set count.
+
 ## Conventions & rules
 - TypeScript strict mode in all packages; shared types live in
   `packages/shared`, never duplicated.
@@ -116,6 +126,17 @@ RLS on all tables: users can only see/change their own rows (global
       `on delete cascade`. "Starta nytt pass" is hidden while a workout
       is active: there is only one slot, so a new one would overwrite
       the old beyond reach
+- [x] Profile page in the app, reached from a hand-rolled bottom tab
+      bar (Hem / Profil) that hides during an active workout. Editable
+      display name (first code anywhere to touch `profiles` — upsert,
+      not update, since accounts predating the trigger have no row),
+      account info from the auth session, lifetime stats from
+      `get_training_stats()`, and an infinite-scrolling workout
+      history. The history query embeds every set in one round trip
+      (`fetchWorkoutHistory`), so tapping a workout opens the detail
+      modal with no extra fetch. Profile writes live in
+      `apps/mobile/lib/profile.ts`, deliberately outside `queries.ts`
+      whose rule is that mutations only ever go through the sync queue
 
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google
