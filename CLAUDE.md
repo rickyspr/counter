@@ -26,9 +26,12 @@ API server – clients talk directly to Supabase, security via RLS.
 - `exercises` – exercise catalog: name, muscle group. Global rows
   (user_id null) + the user's own.
 - `workouts` – a session: user_id, started_at, ended_at, name, note.
-  `name` is an optional title set when editing a logged workout; when
-  it is null the UI falls back to the date. `note` is a separate,
-  still-unused free-text field – a note about the session, not a title.
+  `name` is the workout's title. Naming is optional while logging: a
+  workout left unnamed is written with `defaultWorkoutName()` when it
+  ends, so anything logged by the current app always has one. Null
+  therefore means "logged before naming existed", and those fall back
+  to the date. `note` is a separate, still-unused free-text field – a
+  note about the session, not a title.
 - `workout_exercises` – an exercise within a session: workout_id,
   exercise_id, order.
 - `sets` – a set: workout_exercise_id, set_nr, reps, weight_kg.
@@ -163,6 +166,23 @@ workout's duration by its set count.
       from offset to keyset pagination on `(started_at, id)` - an
       offset skips a row as soon as anything above it is deleted or
       moved, and editing a start time moves rows too
+- [x] Name a workout while logging it, at the top of the active workout
+      screen. Optional: leaving it blank gives the workout
+      `defaultWorkoutName(started_at)` – "Gym på natten / förmiddagen /
+      dagen / kvällen" – written together with `ended_at` in the same
+      `end_workout` queue action, since both are decided in the same
+      moment and hit the same row.
+      The default is shown as the field's PLACEHOLDER rather than as a
+      prefilled value, so naming the workout yourself never starts with
+      deleting a name you did not write. It is computed on the client
+      (`packages/shared/src/workout-name.ts`, unit-tested at every
+      boundary minute) and not as a column default or trigger: the
+      bucket depends on the local hour of `started_at`, which the
+      server cannot know.
+      Workouts logged before this existed keep `name = null` and are
+      still shown by date – deliberately not backfilled. That is also
+      why the edit screen's placeholder is the date and not a default
+      name: there, blank really does mean null
 - [x] Profile page in the app, reached from a hand-rolled bottom tab
       bar (Hem / Profil) that hides during an active workout. Editable
       display name (first code anywhere to touch `profiles` — upsert,

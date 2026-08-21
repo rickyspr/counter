@@ -1,3 +1,4 @@
+import { WORKOUT_NAME_MAX_LENGTH } from "@repcount/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -51,10 +52,13 @@ interface Section {
   sets: LoggedSet[];
 }
 
-// Speglar `workouts_name_length` i 20260821090000_workout_name.sql.
-// Fältet får inte kunna skicka något som villkoret fäller - se
-// migrationen för varför just det felet är så obehagligt.
-const NAME_MAX_LENGTH = 80;
+function formatDate(value: Date): string {
+  return value.toLocaleDateString("sv-SE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 // Skuggvärden från "förra passet" hör inte hemma här: passet man
 // redigerar ÄR historik, och att jämföra det med ett senare pass vore
@@ -590,17 +594,24 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Namn</Text>
+          {/* Platshållaren är datumet, inte ett förvalt passnamn. Här
+              betyder ett tomt fält att kolumnen sätts till null, och då
+              ÄR datumet rubriken. Att visa "Gym på förmiddagen" i grått
+              hade lovat något annat än vad som faktiskt händer - till
+              skillnad från fältet i det pågående passet, där det
+              förvalda namnet verkligen skrivs. */}
           <TextInput
             style={styles.input}
             value={nameDraft}
             onChangeText={setNameDraft}
-            placeholder="T.ex. Ben & rygg"
+            placeholder={startedAt ? formatDate(startedAt) : ""}
             placeholderTextColor="#9ca3af"
-            maxLength={NAME_MAX_LENGTH}
+            maxLength={WORKOUT_NAME_MAX_LENGTH}
+            autoCapitalize="sentences"
             returnKeyType="done"
           />
           <Text style={styles.hintText}>
-            Utan namn visas passets datum, som förut.
+            Utan namn visas passets datum.
           </Text>
 
           {startedAt && (

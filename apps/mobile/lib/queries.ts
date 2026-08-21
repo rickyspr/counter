@@ -69,9 +69,17 @@ export async function startWorkout(
   return { id, started_at };
 }
 
-export async function endWorkout(workoutId: string): Promise<{ ended_at: string }> {
+// `name` är passets namn som det ser ut vid avslutet - antingen det
+// användaren skrivit, eller det förvalda som härletts ur starttiden (se
+// defaultWorkoutName i @repcount/shared). Ett pass som avslutas här har
+// alltså ALLTID ett namn; null i kolumnen betyder ett pass loggat innan
+// den här funktionen fanns, och de visas med sitt datum som förut.
+export async function endWorkout(
+  workoutId: string,
+  name: string,
+): Promise<{ ended_at: string }> {
   const ended_at = new Date().toISOString();
-  await enqueue({ type: "end_workout", workout_id: workoutId, ended_at });
+  await enqueue({ type: "end_workout", workout_id: workoutId, ended_at, name });
   return { ended_at };
 }
 

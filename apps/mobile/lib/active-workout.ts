@@ -41,6 +41,12 @@ export interface ActiveWorkout {
   userId: string;
   workoutId: string;
   startedAt: string;
+  // Vad användaren skrivit i namnfältet, tomt om hen inte rört det.
+  // Valfritt, och versionen är MEDVETET kvar på 1: en bump hade fått
+  // parseStored att kasta alla pass som pågick när appen uppdaterades.
+  // Ett pass från en äldre version saknar bara fältet, och det tomma
+  // namnet betyder samma sak som att inte ha döpt passet.
+  name?: string;
   // Nästa lediga order_index för passet, och nästa lediga set_nr per
   // övning. Samma form som refarna i ActiveWorkoutScreen.
   nextOrderIndex: number;
@@ -86,6 +92,8 @@ function parseStored(raw: unknown, userId: string): ActiveWorkout | null {
   if (value.userId !== userId) return null;
   if (typeof value.workoutId !== "string") return null;
   if (typeof value.startedAt !== "string") return null;
+  // Får saknas (blob från en äldre version), men inte vara skräp.
+  if (value.name !== undefined && typeof value.name !== "string") return null;
   if (typeof value.nextOrderIndex !== "number") return null;
   if (!value.nextSetNr || typeof value.nextSetNr !== "object") return null;
   if (!Array.isArray(value.sections)) return null;

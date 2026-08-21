@@ -1,3 +1,7 @@
+import {
+  defaultWorkoutName,
+  WORKOUT_NAME_MAX_LENGTH,
+} from "@repcount/shared";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -66,6 +70,9 @@ export function ActiveWorkoutScreen({
 }: Props) {
   const [catalog, setCatalog] = useState<ExerciseOption[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  // Tomt = odöpt. Passet får då sitt förvalda namn vid avslutet, och
+  // det namnet visas redan som grå platshållare i fältet.
+  const [nameDraft, setNameDraft] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   // Tills det sparade passet lästs in får ingenting sparas tillbaka -
   // se hydreringen nedan.
@@ -113,6 +120,7 @@ export function ActiveWorkoutScreen({
           nextOrderIndex.current = stored.nextOrderIndex;
           nextSetNr.current = { ...stored.nextSetNr };
           startedAt.current = stored.startedAt;
+          setNameDraft(stored.name ?? "");
           setSections(stored.sections);
         }
         setHydrated(true);
@@ -125,12 +133,16 @@ export function ActiveWorkoutScreen({
     };
   }, [userId, workoutId]);
 
-  function snapshot(currentSections: Section[]): ActiveWorkout {
+  function snapshot(
+    currentSections: Section[],
+    currentName: string = nameDraft,
+  ): ActiveWorkout {
     return {
       version: 1,
       userId,
       workoutId,
       startedAt: startedAt.current,
+      name: currentName,
       nextOrderIndex: nextOrderIndex.current,
       nextSetNr: nextSetNr.current,
       sections: currentSections,
@@ -151,10 +163,11 @@ export function ActiveWorkoutScreen({
   // sections: [] över den sparade blobben direkt vid mount, alltså
   // raderas passet i samma ögonblick som man försöker återuppta det.
   //
-  // Att bara lyssna på `sections` räcker för att fånga räknarna också:
-  // varje mutation av nextSetNr/nextOrderIndex följs av ett setSections
-  // i samma handler (handlePickExercise, handleCreateSetRow,
-  // handleRemoveExercise), så refarna är alltid färska när effekten kör.
+  // `sections` och `nameDraft` är allt som behöver lyssnas på. Räknarna
+  // följer med gratis: varje mutation av nextSetNr/nextOrderIndex följs
+  // av ett setSections i samma handler (handlePickExercise,
+  // handleCreateSetRow, handleRemoveExercise), så refarna är alltid
+  // färska när effekten kör.
   useEffect(() => {
     if (!hydrated || finished.current) return;
     saveActiveWorkout(snapshot(sections)).catch(() => {
@@ -163,7 +176,7 @@ export function ActiveWorkoutScreen({
       // användaren ändå inte kan göra något åt. Själva passet ligger
       // redan säkert i synk-kön - det som riskeras är återupptagningen.
     });
-  }, [hydrated, sections, userId, workoutId]);
+  }, [hydrated, sections, nameDraft, userId, workoutId]);
 
   useEffect(() => {
     // Om detta misslyckas finns varken nät eller en sparad kopia av
@@ -506,7 +519,13 @@ export function ActiveWorkoutScreen({
         ),
       );
       setSections(committed);
-      await endWorkout(workoutId);
+      // Odöpt pass får det förvalda namnet HÄR, inte i databasen: en
+      // default i schemat hade inte kunnat läsa av starttidens timme i
+      // användarens tidszon, och en trigger hade gissat på serverns.
+      await endWorkout(
+        workoutId,
+        nameDraft.trim() || defaultWorkoutName(startedAt.current),
+      );
     } catch (err) {
       Alert.alert(
         "Kunde inte avsluta passet",
@@ -586,6 +605,22 @@ export function ActiveWorkoutScreen({
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Pågående pass</Text>
+
+        {/* Platshållaren ÄR det förvalda namnet, inte ett exempel: låter
+            man fältet stå tomt är det precis det passet kommer att heta.
+            Därför en platshållare och inte ett ifyllt värde - man ska
+            slippa radera ett namn man inte skrivit för att skriva sitt
+            eget. */}
+        <TextInput
+          style={styles.nameInput}
+          value={nameDraft}
+          onChangeText={setNameDraft}
+          placeholder={defaultWorkoutName(startedAt.current)}
+          placeholderTextColor="#9ca3af"
+          maxLength={WORKOUT_NAME_MAX_LENGTH}
+          autoCapitalize="sentences"
+          returnKeyType="done"
+        />
 
         {sections.map((section) => (
           <ExerciseSection
@@ -678,6 +713,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "700",
+  },
+  nameInput: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
   },
   secondaryButton: {
     borderWidth: 1,

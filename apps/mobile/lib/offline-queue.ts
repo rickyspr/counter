@@ -38,9 +38,17 @@ type QueuedAction =
       workout_id: string;
     }
   | {
+      // Namnet följer med avslutet istället för att vara en egen
+      // åtgärd: det bestäms i exakt samma ögonblick som ended_at, och
+      // träffar samma rad. Två köposter hade blivit två uppdateringar
+      // av en rad för något användaren gjorde en gång.
+      //
+      // Valfritt: köposter som sparades av en äldre appversion saknar
+      // det, och då lämnas kolumnen orörd.
       type: "end_workout";
       workout_id: string;
       ended_at: string;
+      name?: string;
     }
   | {
       // Redigering av ett redan avslutat pass: namn och/eller tider.
@@ -168,7 +176,10 @@ async function applyAction(action: QueuedAction): Promise<void> {
     case "end_workout": {
       const { error } = await supabase
         .from("workouts")
-        .update({ ended_at: action.ended_at })
+        .update({
+          ended_at: action.ended_at,
+          ...(action.name !== undefined ? { name: action.name } : {}),
+        })
         .eq("id", action.workout_id);
       if (error) throw error;
       return;
