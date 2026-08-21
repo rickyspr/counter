@@ -19,6 +19,7 @@ import {
   type TrainingStats,
 } from "../lib/profile";
 import {
+  cursorFor,
   fetchWorkoutHistory,
   WORKOUT_HISTORY_PAGE_SIZE,
   type WorkoutHistoryEntry,
@@ -28,6 +29,7 @@ import { useSyncStatus } from "../lib/use-sync-status";
 
 interface Props {
   session: Session;
+  onEditWorkout: (workoutId: string) => void;
 }
 
 function formatDate(iso: string): string {
@@ -65,7 +67,7 @@ function formatTotalVolume(kg: number): string {
   return `${Math.round(kg).toLocaleString("sv-SE")} kg`;
 }
 
-export function ProfileScreen({ session }: Props) {
+export function ProfileScreen({ session, onEditWorkout }: Props) {
   const userId = session.user.id;
   const { online, pendingCount } = useSyncStatus();
 
@@ -106,7 +108,7 @@ export function ProfileScreen({ session }: Props) {
     const [profile, trainingStats, firstPage] = await Promise.allSettled([
       fetchProfile(userId),
       fetchTrainingStats(),
-      fetchWorkoutHistory(userId, 0),
+      fetchWorkoutHistory(userId, null),
     ]);
 
     if (profile.status === "fulfilled") {
@@ -144,9 +146,14 @@ export function ProfileScreen({ session }: Props) {
     fetchingPage.current = true;
     setLoadingMore(true);
     try {
-      const next = await fetchWorkoutHistory(userId, workouts.length);
-      // Filtrerar på id: skulle ett pass avslutas mellan två sidhämtningar
-      // förskjuts offseten och samma rad kan komma tillbaka.
+      // Brytpunkten är sista raden vi har, inte antalet rader vi har -
+      // se fetchWorkoutHistory. Med en offset hoppar listan över ett
+      // pass så fort ett annat raderas eller flyttar sig i sorteringen
+      // mitt under bläddringen, vilket båda numera går att göra.
+      const next = await fetchWorkoutHistory(userId, cursorFor(workouts));
+      // Dubblettskyddet står kvar ändå: ett pass vars starttid flyttas
+      // NEDÅT i listan mellan två hämtningar kan hinna passera
+      // brytpunkten och komma med en gång till.
       setWorkouts((prev) => {
         const seen = new Set(prev.map((w) => w.id));
         return [...prev, ...next.filter((w) => !seen.has(w.id))];
@@ -296,13 +303,20 @@ export function ProfileScreen({ session }: Props) {
             onPress={() => setSelected(item)}
           >
             <View style={styles.workoutRowTop}>
-              <Text style={styles.workoutDate}>
-                {formatDate(item.startedAt)}
+              {/* Har passet ett namn bär det raden, med datumet under.
+                  Utan namn är datumet rubriken, precis som förut. */}
+              <Text style={styles.workoutDate} numberOfLines={1}>
+                {item.name ?? formatDate(item.startedAt)}
               </Text>
               <Text style={styles.workoutVolume}>
                 {item.summary.totalVolumeKg.toLocaleString("sv-SE")} kg
               </Text>
             </View>
+            {item.name !== null && (
+              <Text style={styles.workoutMeta}>
+                {formatDate(item.startedAt)}
+              </Text>
+            )}
             {item.exercises.length > 0 && (
               // Dedupas: samma övning kan förekomma i två block i ett
               // pass, och "Bänkpress, Bänkpress · 1 övning" ser trasigt
@@ -333,6 +347,13 @@ export function ProfileScreen({ session }: Props) {
       <WorkoutDetailModal
         workout={selected}
         onClose={() => setSelected(null)}
+        // Detaljmodalen stängs innan redigeringen öppnas: den ligger
+        // kvar över skärmen annars, och profilen renderas ändå om från
+        // grunden när man kommer tillbaka.
+        onEdit={(workoutId) => {
+          setSelected(null);
+          onEditWorkout(workoutId);
+        }}
       />
     </View>
   );

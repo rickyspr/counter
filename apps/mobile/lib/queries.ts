@@ -130,10 +130,53 @@ export async function removeExerciseFromWorkout(
 }
 
 // Slänger ett pass helt: raden i workouts plus allt under den, via
-// `on delete cascade`. Används när man avbryter ett pågående pass eller
-// slänger ett återupptaget - aldrig för ett avslutat.
+// `on delete cascade`. Används när man avbryter ett pågående pass,
+// slänger ett återupptaget, eller raderar ett avslutat ur historiken.
+//
+// Att det sista blev möjligt är anledningen till att fetchWorkoutHistory
+// nedan är keyset-paginerad och inte offset-paginerad.
 export async function deleteWorkout(workoutId: string): Promise<void> {
   await enqueue({ type: "delete_workout", workout_id: workoutId });
+}
+
+// Namn och tider på ett avslutat pass.
+//
+// Tiderna tas emot som ETT värde, aldrig var för sig. Tabellen har
+// `check (ended_at is null or ended_at >= started_at)`, och en patch med
+// bara en ny starttid vägs mot den sluttid som redan ligger i databasen.
+// Flyttar man starten förbi den gamla sluttiden fäller villkoret
+// uppdateringen med 23514 - permanent fel, alltså slänger synk-kön
+// åtgärden och ändringen försvinner utan att ha hänt. Skickas båda
+// samtidigt jämförs de mot varandra och kontrollen nedan har redan
+// avgjort saken.
+export interface WorkoutTimes {
+  startedAt: string;
+  endedAt: string;
+}
+
+export async function updateWorkoutDetails(
+  workoutId: string,
+  patch: { name?: string | null; times?: WorkoutTimes },
+): Promise<void> {
+  // Jämförs som tidpunkter, inte som strängar: en sträng-jämförelse
+  // stämmer bara så länge båda har exakt samma ISO-format och zon.
+  if (
+    patch.times &&
+    Date.parse(patch.times.endedAt) < Date.parse(patch.times.startedAt)
+  ) {
+    // Sista spärren före kön. UI:t hindrar det redan, men ett fel här är
+    // synligt och går att åtgärda - ett fel i kön är det inte.
+    throw new Error("Sluttiden kan inte vara före starttiden.");
+  }
+
+  await enqueue({
+    type: "update_workout",
+    workout_id: workoutId,
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.times
+      ? { started_at: patch.times.startedAt, ended_at: patch.times.endedAt }
+      : {}),
+  });
 }
 
 export interface PreviousSet {
@@ -253,10 +296,25 @@ export interface HistoryExercise {
 
 export interface WorkoutHistoryEntry {
   id: string;
+  name: string | null;
   startedAt: string;
   endedAt: string | null;
   summary: WorkoutSummary;
   exercises: HistoryExercise[];
+}
+
+// Brytpunkten för nästa sida: sista raden på den föregående. Se
+// fetchWorkoutHistory nedan för varför det inte är en offset.
+export interface WorkoutHistoryCursor {
+  startedAt: string;
+  id: string;
+}
+
+export function cursorFor(
+  entries: WorkoutHistoryEntry[],
+): WorkoutHistoryCursor | null {
+  const last = entries[entries.length - 1];
+  return last ? { startedAt: last.startedAt, id: last.id } : null;
 }
 
 // En sida av passhistoriken, med alla set inbäddade i SAMMA anrop -
@@ -266,29 +324,51 @@ export interface WorkoutHistoryEntry {
 //
 // Kräver nätverk, som resten av historik/statistik (se CLAUDE.md).
 //
-// Sidindelningen är offset-baserad. Det driver om rader försvinner
-// mellan två sidhämtningar: allt under flyttas upp och raden som hamnar
-// på sista platsen hoppas över helt. Det är ofarligt så länge inget kan
-// radera ett AVSLUTAT pass - "Släng"/"Avbryt pass" träffar bara det
-// pågående, som filtret nedan redan utesluter. Skulle det någon gång gå
-// att radera ur historiken måste det här bli keyset-paginering
-// (started_at + id som brytpunkt).
+// Sidindelningen är KEYSET-baserad, inte offset-baserad. En offset
+// driver så fort en rad försvinner mellan två sidhämtningar: allt under
+// flyttas upp ett steg och raden som då hamnar på offsetens plats
+// hoppas över helt. Förut var det ofarligt - inget kunde radera ett
+// avslutat pass - men numera går det både att radera ett pass ur
+// historiken och att ändra dess starttid, alltså flytta det i
+// sorteringen, mitt under en pågående bläddring.
+//
+// Brytpunkten är (started_at, id). Bara started_at räcker inte: två
+// pass kan ha exakt samma starttid, och då hade det ena tappats. `id`
+// är godtyckligt som ordning men behöver bara vara STABILT och totalt,
+// vilket en primärnyckel är. Sekundärsorteringen på id nedan hör ihop
+// med det - utan den är ordningen mellan två lika starttider inte
+// definierad, och då betyder brytpunkten ingenting.
 export async function fetchWorkoutHistory(
   userId: string,
-  offset: number,
+  cursor: WorkoutHistoryCursor | null,
   limit: number = WORKOUT_HISTORY_PAGE_SIZE,
 ): Promise<WorkoutHistoryEntry[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("workouts")
     .select(
-      "id, started_at, ended_at, workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg))",
+      "id, name, started_at, ended_at, workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg))",
     )
     .eq("user_id", userId)
     // Repots konvention för "avslutade pass" - utesluter också det pass
     // som just nu pågår.
     .not("ended_at", "is", null)
     .order("started_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order("id", { ascending: false })
+    .limit(limit);
+
+  if (cursor) {
+    // "started_at < X, eller samma started_at och id < Y" - alltså allt
+    // som ligger strikt efter brytpunkten i sorteringen ovan.
+    //
+    // Tidsstämpeln måste citeras. PostgREST delar or-uttrycket på komma
+    // och punkt, och en ISO-sträng innehåller både ":" och "+" som
+    // annars tolkas som delar av syntaxen istället för som värde.
+    query = query.or(
+      `started_at.lt."${cursor.startedAt}",and(started_at.eq."${cursor.startedAt}",id.lt.${cursor.id})`,
+    );
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
 
   return (data ?? []).map((workout) => {
@@ -319,10 +399,114 @@ export async function fetchWorkoutHistory(
 
     return {
       id: workout.id,
+      name: workout.name,
       startedAt: workout.started_at,
       endedAt: workout.ended_at,
       summary: summarizeWorkout(workout, setRecords),
       exercises,
     };
   });
+}
+
+export interface EditableSet {
+  id: string;
+  setNr: number;
+  reps: number;
+  weightKg: number;
+}
+
+export interface EditableExercise {
+  workoutExerciseId: string;
+  exerciseId: string;
+  exerciseName: string;
+  sets: EditableSet[];
+}
+
+export interface EditableWorkout {
+  id: string;
+  name: string | null;
+  startedAt: string;
+  endedAt: string;
+  exercises: EditableExercise[];
+  // Nästa lediga nummer, uträknade som max+1 över det servern svarade
+  // med. Samma form som räknarna i ActiveWorkoutScreen.
+  nextOrderIndex: number;
+  nextSetNr: Record<string, number>;
+}
+
+// Hämtar ETT avslutat pass för redigering, inklusive set-id:n (som
+// historikfrågan inte behöver) och de räknare som nya övningar och set
+// ska numreras ur.
+//
+// Läser om passet från servern istället för att återanvända raden
+// listan redan har. Två skäl: listan kan vara minuter gammal och
+// ändrad från en annan enhet, och den saknar ändå set-id:n.
+//
+// max+1 är säkert HÄR men vore det inte i ActiveWorkoutScreen, och
+// skillnaden är värd att hålla isär. Ett pågående pass har halvifyllda
+// rader som med flit aldrig skrivits, och kan ha åtgärder kvar i
+// synk-kön - serverns max säger då inte vad som är upptaget. Ett
+// avslutat pass öppnas bara med nät OCH tömd kö (se drainQueue i
+// offline-queue.ts), så allt som finns är på servern när det här körs.
+// Under själva redigeringen räknas numren upp lokalt och monotont, och
+// dör appen mitt i ligger de köade raderna kvar på disk med sina
+// nummer - nästa öppning tömmer kön först och läser då ett max som
+// redan är förbi dem.
+export async function fetchWorkoutForEdit(
+  userId: string,
+  workoutId: string,
+): Promise<EditableWorkout> {
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(
+      "id, name, started_at, ended_at, workout_exercises(id, order_index, exercise_id, exercises(name), sets(id, set_nr, reps, weight_kg))",
+    )
+    .eq("user_id", userId)
+    // Bara avslutade pass går att redigera här. Ett pågående pass ägs av
+    // den lokala blobben (active-workout.ts), och dess räknare finns
+    // inte på servern - att redigera det härifrån skulle dela ut nummer
+    // som pass-skärmen redan reserverat.
+    .not("ended_at", "is", null)
+    .eq("id", workoutId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.ended_at === null) {
+    throw new Error("Passet finns inte längre.");
+  }
+
+  const workoutExercises = [...(data.workout_exercises ?? [])].sort(
+    (a, b) => a.order_index - b.order_index,
+  );
+
+  const nextSetNr: Record<string, number> = {};
+  const exercises: EditableExercise[] = workoutExercises.map((we) => {
+    const sets = [...(we.sets ?? [])]
+      .sort((a, b) => a.set_nr - b.set_nr)
+      .map((s) => ({
+        id: s.id,
+        setNr: s.set_nr,
+        reps: s.reps,
+        weightKg: s.weight_kg,
+      }));
+    nextSetNr[we.id] =
+      sets.reduce((max, s) => Math.max(max, s.setNr), 0) + 1;
+    return {
+      workoutExerciseId: we.id,
+      exerciseId: we.exercise_id,
+      exerciseName: we.exercises?.name ?? "Okänd övning",
+      sets,
+    };
+  });
+
+  return {
+    id: data.id,
+    name: data.name,
+    startedAt: data.started_at,
+    endedAt: data.ended_at,
+    exercises,
+    // -1 + 1 = 0 för ett pass utan övningar; order_index börjar på 0.
+    nextOrderIndex:
+      workoutExercises.reduce((max, we) => Math.max(max, we.order_index), -1) + 1,
+    nextSetNr,
+  };
 }

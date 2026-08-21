@@ -11,6 +11,7 @@ import type { WorkoutHistoryEntry } from "../lib/queries";
 interface Props {
   workout: WorkoutHistoryEntry | null;
   onClose: () => void;
+  onEdit: (workoutId: string) => void;
 }
 
 function formatDateTime(iso: string): string {
@@ -31,7 +32,7 @@ function formatDateTime(iso: string): string {
 // En Modal istället för en egen gren i App.tsx routern: vyn nås bara
 // härifrån, och modalen ger stäng-beteendet gratis utan att den
 // handrullade routern behöver en back-stack.
-export function WorkoutDetailModal({ workout, onClose }: Props) {
+export function WorkoutDetailModal({ workout, onClose, onEdit }: Props) {
   return (
     <Modal
       visible={workout !== null}
@@ -41,7 +42,11 @@ export function WorkoutDetailModal({ workout, onClose }: Props) {
       {workout && (
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title}>Pass</Text>
+            {/* Namnet är valfritt - utan det heter passet "Pass" och
+                datumet under bär identiteten, precis som förut. */}
+            <Text style={styles.title} numberOfLines={1}>
+              {workout.name ?? "Pass"}
+            </Text>
             <TouchableOpacity onPress={onClose}>
               <Text style={styles.closeText}>Stäng</Text>
             </TouchableOpacity>
@@ -49,6 +54,13 @@ export function WorkoutDetailModal({ workout, onClose }: Props) {
 
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.date}>{formatDateTime(workout.startedAt)}</Text>
+
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => onEdit(workout.id)}
+            >
+              <Text style={styles.editButtonText}>Redigera pass</Text>
+            </TouchableOpacity>
 
             <View style={styles.summaryRow}>
               <Summary
@@ -125,6 +137,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "700",
+    flexShrink: 1,
+  },
+  editButton: {
+    borderWidth: 1,
+    borderColor: "#111827",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  editButtonText: {
+    color: "#111827",
+    fontWeight: "600",
   },
   closeText: {
     color: "#111827",

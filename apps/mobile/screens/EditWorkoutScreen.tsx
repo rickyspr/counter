@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,25 +13,21 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { DateTimeField } from "../components/DateTimeField";
 import { ExerciseSection } from "../components/ExerciseSection";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
-import { useSyncStatus } from "../lib/use-sync-status";
-import {
-  clearActiveWorkout,
-  loadActiveWorkout,
-  saveActiveWorkout,
-  type ActiveWorkout,
-} from "../lib/active-workout";
+import { getOnlineStatus } from "../lib/network";
+import { drainQueue } from "../lib/offline-queue";
 import {
   addExerciseToWorkout,
   deleteSet,
   deleteWorkout,
-  endWorkout,
   fetchExerciseCatalog,
-  fetchPreviousSetsForExercise,
+  fetchWorkoutForEdit,
   newSetId,
   removeExerciseFromWorkout,
   saveSet,
+  updateWorkoutDetails,
   type ExerciseOption,
   type PreviousSet,
 } from "../lib/queries";
@@ -40,12 +36,12 @@ import {
   parseSetDrafts,
   type LoggedSet,
 } from "../lib/set-parsing";
+import { useSyncStatus } from "../lib/use-sync-status";
 
 interface Props {
   userId: string;
   workoutId: string;
-  onFinish: () => void;
-  onDiscard: () => void;
+  onClose: () => void;
 }
 
 interface Section {
@@ -53,158 +49,141 @@ interface Section {
   exerciseId: string;
   exerciseName: string;
   sets: LoggedSet[];
-  // Vad användaren körde på samma övning förra passet, i positions-
-  // ordning. Visas som grå platshållare - inte som värden.
-  previousSets: PreviousSet[];
 }
 
-export function ActiveWorkoutScreen({
-  userId,
-  workoutId,
-  onFinish,
-  onDiscard,
-}: Props) {
-  const [catalog, setCatalog] = useState<ExerciseOption[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  // Tills det sparade passet lästs in får ingenting sparas tillbaka -
-  // se hydreringen nedan.
-  const [hydrated, setHydrated] = useState(false);
-  // Raden som just skapats och ska få markören.
-  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
-  // Rader som varningen vid avslut pekat ut. Markeras röda. Sätts först
-  // vid avslut - en rad man håller på att fylla i ska inte lysa röd
-  // medan man skriver.
-  const [flaggedSetIds, setFlaggedSetIds] = useState<string[]>([]);
+// Speglar `workouts_name_length` i 20260821090000_workout_name.sql.
+// Fältet får inte kunna skicka något som villkoret fäller - se
+// migrationen för varför just det felet är så obehagligt.
+const NAME_MAX_LENGTH = 80;
+
+// Skuggvärden från "förra passet" hör inte hemma här: passet man
+// redigerar ÄR historik, och att jämföra det med ett senare pass vore
+// bakvänt. Modulnivå så att det inte blir en ny array per rendering.
+const NO_PREVIOUS_SETS: PreviousSet[] = [];
+
+// Vad servern hade när passet lästes in. Används bara för att avgöra om
+// namn/tider faktiskt ändrats, så ett tryck på "Klar" utan ändringar
+// inte köar en uppdatering.
+interface ServerMeta {
+  name: string | null;
+  startedAt: string;
+  endedAt: string;
+}
+
+export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
   const { online, pendingCount } = useSyncStatus();
 
-  // Nästa lediga set_nr per övning, och nästa lediga order_index för
-  // passet. Båda är monotona och återanvänds ALDRIG, inte ens efter en
-  // borttagning: sets.length + 1 skulle krocka med ett kvarvarande
-  // set_nr (unique (workout_exercise_id, set_nr)) och upserten i
-  // synk-kön skulle då skriva över det setet i tysthet. Samma sak för
-  // order_index mot unique (workout_id, order_index).
-  //
-  // De ligger i refs, inte i state, så att numret kan reserveras
-  // synkront INNAN await:en - annars kan två snabba tryck läsa samma
-  // nummer och det andra setet skriva över det första.
-  const nextSetNr = useRef<Record<string, number>>({});
-  const nextOrderIndex = useRef(0);
-  const firstInputs = useRef<Record<string, TextInput | null>>({});
-  // startedAt ägs av den sparade blobben (HomeScreen skriver den när
-  // passet startas) och skickas bara tillbaka oförändrad vid varje spar.
-  const startedAt = useRef(new Date().toISOString());
-  // Sätts när passet avslutats eller avbrutits. Avväpnar spar-effekten
-  // så att en sen setSections (t.ex. ett commitSetEdit som landar mellan
-  // rensningen och att skärmen försvinner) inte kan skriva tillbaka
-  // blobben och få ett FÄRDIGT pass att dyka upp som "pågående" igen.
-  const finished = useRef(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<ExerciseOption[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Läser tillbaka passet från disk. HomeScreen skriver alltid en blob
-  // när passet startas, så det här är samma kodväg för ett splitternytt
-  // pass som för ett återupptaget - skillnaden är bara att sections är
-  // tom i det första fallet.
-  useEffect(() => {
-    let cancelled = false;
-    loadActiveWorkout(userId)
-      .then((stored) => {
-        if (cancelled) return;
-        if (stored && stored.workoutId === workoutId) {
-          nextOrderIndex.current = stored.nextOrderIndex;
-          nextSetNr.current = { ...stored.nextSetNr };
-          startedAt.current = stored.startedAt;
-          setSections(stored.sections);
-        }
-        setHydrated(true);
-      })
-      .catch(() => {
-        if (!cancelled) setHydrated(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const [sections, setSections] = useState<Section[]>([]);
+  const [nameDraft, setNameDraft] = useState("");
+  const [startedAt, setStartedAt] = useState<Date | null>(null);
+  const [endedAt, setEndedAt] = useState<Date | null>(null);
+
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const [flaggedSetIds, setFlaggedSetIds] = useState<string[]>([]);
+
+  // Nästa lediga order_index för passet, och nästa lediga set_nr per
+  // övning - båda uträknade som max+1 av fetchWorkoutForEdit.
+  //
+  // Till skillnad från ActiveWorkoutScreen skrivs de ALDRIG till disk.
+  // Där behövs det för att räknarna inte går att räkna fram igen; här
+  // görs de om från servern vid varje öppning, efter att kön tömts. Dör
+  // appen mitt i en redigering ligger de köade raderna kvar på disk med
+  // sina nummer, spelas upp mot servern, och nästa öppning läser ett max
+  // som redan är förbi dem.
+  const nextOrderIndex = useRef(0);
+  const nextSetNr = useRef<Record<string, number>>({});
+  const firstInputs = useRef<Record<string, TextInput | null>>({});
+  const savedMeta = useRef<ServerMeta | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      // Läses som en ögonblicksbild, inte via useSyncStatus: hade
+      // uppkopplingen legat i beroendelistan hade en vippande anslutning
+      // laddat om skärmen mitt i en redigering och slängt allt ofyllt.
+      if (!getOnlineStatus()) {
+        throw new Error(
+          "Det går inte att redigera ett pass utan uppkoppling. Försök igen när du är online.",
+        );
+      }
+      // Måste ske FÖRE hämtningen. Se drainQueue i offline-queue.ts:
+      // räknarna nedan är max+1 över det servern svarar med, och det
+      // stämmer bara när allt som finns har hunnit dit.
+      if (!(await drainQueue())) {
+        throw new Error(
+          "Det finns ändringar som inte hunnit synkas. Försök igen om en stund.",
+        );
+      }
+
+      const workout = await fetchWorkoutForEdit(userId, workoutId);
+      nextOrderIndex.current = workout.nextOrderIndex;
+      nextSetNr.current = { ...workout.nextSetNr };
+      savedMeta.current = {
+        name: workout.name,
+        startedAt: workout.startedAt,
+        endedAt: workout.endedAt,
+      };
+      setNameDraft(workout.name ?? "");
+      setStartedAt(new Date(workout.startedAt));
+      setEndedAt(new Date(workout.endedAt));
+      setSections(
+        workout.exercises.map((exercise) => ({
+          workoutExerciseId: exercise.workoutExerciseId,
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          // Raderna kommer från databasen, alltså är de per definition
+          // redan sparade: `saved` fylls i, och utkasten speglar den.
+          sets: exercise.sets.map((set) => ({
+            id: set.id,
+            setNr: set.setNr,
+            repsDraft: String(set.reps),
+            weightDraft: String(set.weightKg),
+            saved: { reps: set.reps, weightKg: set.weightKg },
+          })),
+        })),
+      );
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Okänt fel.");
+    } finally {
+      setLoading(false);
+    }
   }, [userId, workoutId]);
 
-  function snapshot(currentSections: Section[]): ActiveWorkout {
-    return {
-      version: 1,
-      userId,
-      workoutId,
-      startedAt: startedAt.current,
-      nextOrderIndex: nextOrderIndex.current,
-      nextSetNr: nextSetNr.current,
-      sections: currentSections,
-    };
-  }
-
-  // Skriver blobben direkt istället för att vänta på spar-effekten.
-  // Fel sväljs INTE här: kan räknaren inte sparas ska åtgärden som
-  // förbrukar den inte köas heller.
-  function persistCounters(): Promise<void> {
-    return saveActiveWorkout(snapshot(sections));
-  }
-
-  // Sparar hela skärmtillståndet vid varje ändring, så ett pass
-  // överlever att appen swipas bort.
-  //
-  // `hydrated`-vakten är inte valfri: utan den skriver den här effekten
-  // sections: [] över den sparade blobben direkt vid mount, alltså
-  // raderas passet i samma ögonblick som man försöker återuppta det.
-  //
-  // Att bara lyssna på `sections` räcker för att fånga räknarna också:
-  // varje mutation av nextSetNr/nextOrderIndex följs av ett setSections
-  // i samma handler (handlePickExercise, handleCreateSetRow,
-  // handleRemoveExercise), så refarna är alltid färska när effekten kör.
   useEffect(() => {
-    if (!hydrated || finished.current) return;
-    saveActiveWorkout(snapshot(sections)).catch(() => {
-      // Tyst med flit: det här körs vid varje tangenttryck, och en
-      // dialog per tecken vore både omöjlig att jobba i och något
-      // användaren ändå inte kan göra något åt. Själva passet ligger
-      // redan säkert i synk-kön - det som riskeras är återupptagningen.
-    });
-  }, [hydrated, sections, userId, workoutId]);
+    void load();
+  }, [load]);
 
   useEffect(() => {
-    // Om detta misslyckas finns varken nät eller en sparad kopia av
-    // övningskatalogen (se lib/queries.ts) - händer bara om appen
-    // aldrig varit online sedan installation.
     fetchExerciseCatalog()
       .then(setCatalog)
-      .catch(() =>
-        Alert.alert(
-          "Kunde inte hämta övningar",
-          "Ingen uppkoppling och ingen sparad övningslista än. Öppna appen minst en gång med nät innan du loggar helt offline.",
-        ),
-      );
+      .catch(() => {
+        // Katalogen ligger cachad sedan tidigare i normalfallet, och
+        // skärmen kräver ändå nät - misslyckas den syns det som en tom
+        // väljare, inte som en dialog ovanpå en dialog.
+      });
   }, []);
 
-  // Skrivfunktionerna går via en lokal synk-kö (se lib/offline-queue.ts)
-  // - de väntar bara in det lokala sparandet (millisekunder), inte
-  // nätverket, så hela passet går att logga offline utan fördröjning.
+  // Samma mönster som i det pågående passet: skrivningarna går via
+  // synk-kön och väntar bara in det lokala sparandet.
   async function handlePickExercise(exercise: ExerciseOption) {
     setPickerOpen(false);
     const orderIndex = nextOrderIndex.current;
     nextOrderIndex.current += 1;
     try {
-      // Den förbrukade räknaren måste nå disken INNAN åtgärden köas,
-      // inte via spar-effekten några tick senare. Dör appen i glappet
-      // ligger order_index = n i kön medan blobben fortfarande säger
-      // "nästa lediga är n", och nästa övning får samma nummer. Då
-      // fäller unique (workout_id, order_index) upserten med 23505 -
-      // ett permanent fel, så kön SLÄNGER åtgärden, och setsen under
-      // övningen ryker med den på sin trasiga referens.
-      await persistCounters();
       const workoutExercise = await addExerciseToWorkout(
         workoutId,
         exercise.id,
         orderIndex,
       );
-      // Man vill alltid ha minst ett set, så övningen kommer med rad 1
-      // redan på plats - annars blir "Lägg till set" ett obligatoriskt
-      // extratryck efter varje övning. Raden är tom, alltså saved: null
-      // och aldrig köad (se LoggedSet); den skrivs först när båda fälten
-      // går att tolka.
+      // En övning utan set finns inte i den här appen, så rad 1 följer
+      // med direkt. Den är tom - alltså saved: null, alltså aldrig köad
+      // förrän båda fälten går att tolka.
       const firstSet: LoggedSet = {
         id: newSetId(),
         setNr: 1,
@@ -220,24 +199,8 @@ export function ActiveWorkoutScreen({
           exerciseId: exercise.id,
           exerciseName: exercise.name,
           sets: [firstSet],
-          previousSets: [],
         },
       ]);
-
-      // Skuggvärdena är rent stöd - de hämtas i bakgrunden och fyller på
-      // sektionen när de kommer. Blir det inget svar syns bara inga
-      // platshållare.
-      void fetchPreviousSetsForExercise(userId, exercise.id)
-        .then((previousSets) => {
-          setSections((prev) =>
-            prev.map((s) =>
-              s.workoutExerciseId === workoutExercise.id
-                ? { ...s, previousSets }
-                : s,
-            ),
-          );
-        })
-        .catch(() => {});
     } catch (err) {
       Alert.alert(
         "Kunde inte lägga till övning",
@@ -246,10 +209,6 @@ export function ActiveWorkoutScreen({
     }
   }
 
-  // Lägger ALLTID till en ny rad, även om den förra fortfarande är tom:
-  // knappen ska göra det den heter. Tomma rader kostar ingenting i
-  // databasen (de köas aldrig) och avslutet kräver ändå att varje rad
-  // fylls i eller tas bort med ✕.
   function handleCreateSetRow(section: Section) {
     const setNr = nextSetNr.current[section.workoutExerciseId] ?? 1;
     nextSetNr.current[section.workoutExerciseId] = setNr + 1;
@@ -291,10 +250,9 @@ export function ActiveWorkoutScreen({
     );
   }
 
-  // Körs när ett fält tappar fokus. Ett tomt eller ogiltigt värde gör
-  // ingenting alls - ingen dialog, ingen återställning. Man ska kunna
-  // hoppa mellan reps och vikt utan att bli avbruten; allt som saknas
-  // fångas istället av varningen vid "Avsluta pass".
+  // Ett halvifyllt fält gör ingenting alls vid blur - man ska kunna
+  // hoppa mellan kg och reps utan att bli avbruten. Det som saknas
+  // fångas av valideringen i handleDone.
   async function commitSetEdit(section: Section, set: LoggedSet) {
     const parsed = parseSetDrafts(set);
     if (parsed === null) return;
@@ -350,8 +308,6 @@ export function ActiveWorkoutScreen({
   }
 
   function confirmDeleteSet(section: Section, set: LoggedSet, label: number) {
-    // En rad som aldrig sparats finns bara på skärmen - inget att
-    // bekräfta och inget att ta bort på servern.
     if (set.saved === null) {
       removeSetRow(section, set);
       return;
@@ -404,8 +360,6 @@ export function ActiveWorkoutScreen({
   async function handleRemoveExercise(section: Section) {
     try {
       await removeExerciseFromWorkout(section.workoutExerciseId);
-      // nextOrderIndex och räknaren för övningen rörs inte - numren får
-      // aldrig återanvändas.
       delete nextSetNr.current[section.workoutExerciseId];
       const removedIds = new Set(section.sets.map((s) => s.id));
       for (const id of removedIds) delete firstInputs.current[id];
@@ -421,15 +375,65 @@ export function ActiveWorkoutScreen({
     }
   }
 
-  async function handleFinish() {
-    // Ett tryck på "Avsluta pass" triggar inte pålitligt onBlur på ett
-    // fokuserat fält, så drafts - inte `saved` - är källan här.
-    //
-    // Valideringen måste vara helt fri från sidoeffekter: skrevs ett
-    // giltigt set redan under insamlingen skulle det hamna i kön även
-    // när avslutet blockeras av ett ANNAT set. Raden hade då legat på
-    // servern med saved === null lokalt, och ett efterföljande ✕ hade
-    // tagit bort den bara från skärmen och lämnat kvar den i databasen.
+  function confirmDeleteWorkout() {
+    const setCount = sections.reduce(
+      (total, section) =>
+        total + section.sets.filter((s) => s.saved !== null).length,
+      0,
+    );
+    Alert.alert(
+      "Ta bort passet?",
+      setCount === 0
+        ? "Passet tas bort ur historiken. Det går inte att ångra."
+        : `Passet och dess ${setCount} loggade set tas bort ur historiken. Det går inte att ångra.`,
+      [
+        { text: "Avbryt", style: "cancel" },
+        {
+          text: "Ta bort",
+          style: "destructive",
+          onPress: () => void handleDeleteWorkout(),
+        },
+      ],
+    );
+  }
+
+  async function handleDeleteWorkout() {
+    try {
+      // Övningar och set städas av `on delete cascade`.
+      await deleteWorkout(workoutId);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte ta bort passet",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+      return;
+    }
+    onClose();
+  }
+
+  // Namn och tider skrivs HÄR, inte löpande som set-raderna. De är tre
+  // kolumner på samma rad och blir en enda update - att skriva vid varje
+  // tangenttryck och varje snurr på datumhjulet hade fyllt synk-kön med
+  // uppdateringar av samma rad. Set-rader är tvärtom många och
+  // oberoende, och där är löpande skrivning hela poängen.
+  async function handleDone() {
+    if (!startedAt || !endedAt) return;
+
+    // Tiderna först: det felet går inte att rätta genom att fylla i en
+    // rad, så det ska inte gömmas bakom en lista över tomma set.
+    if (endedAt.getTime() < startedAt.getTime()) {
+      Alert.alert(
+        "Sluttiden ligger före starten",
+        "Passet måste sluta efter att det började. Justera start- eller sluttiden.",
+      );
+      return;
+    }
+
+    // Valideringen är helt fri från sidoeffekter: skrevs ett giltigt set
+    // redan under insamlingen skulle det hamna i kön även när "Klar"
+    // blockeras av ett ANNAT set. Raden hade då legat på servern med
+    // saved === null lokalt, och ett efterföljande ✕ hade tagit bort den
+    // bara från skärmen.
     const problems: { setId: string | null; label: string }[] = [];
     const writes: {
       set: LoggedSet;
@@ -479,7 +483,7 @@ export function ActiveWorkoutScreen({
       const firstSetId = problems.find((p) => p.setId !== null)?.setId;
       Alert.alert(
         "Fyll i alla set",
-        `Fyll i eller ta bort följande innan du avslutar:\n\n${lines.join("\n")}`,
+        `Fyll i eller ta bort följande innan du sparar:\n\n${lines.join("\n")}`,
         [
           {
             text: "OK",
@@ -506,73 +510,70 @@ export function ActiveWorkoutScreen({
         ),
       );
       setSections(committed);
-      await endWorkout(workoutId);
+
+      const meta = savedMeta.current;
+      const trimmed = nameDraft.trim();
+      const name = trimmed === "" ? null : trimmed;
+      // Tidsstämplarna jämförs som TIDPUNKTER. Servern svarar med
+      // "…+00:00" och toISOString() ger "…Z" - som strängar skiljer de
+      // sig alltid, och varje "Klar" hade köat en uppdatering av tider
+      // som inte rörts.
+      const timesChanged =
+        meta === null ||
+        Date.parse(meta.startedAt) !== startedAt.getTime() ||
+        Date.parse(meta.endedAt) !== endedAt.getTime();
+
+      const patch = {
+        ...(meta === null || name !== meta.name ? { name } : {}),
+        ...(timesChanged
+          ? {
+              times: {
+                startedAt: startedAt.toISOString(),
+                endedAt: endedAt.toISOString(),
+              },
+            }
+          : {}),
+      };
+      if (Object.keys(patch).length > 0) {
+        await updateWorkoutDetails(workoutId, patch);
+      }
     } catch (err) {
       Alert.alert(
-        "Kunde inte avsluta passet",
+        "Kunde inte spara ändringarna",
         err instanceof Error ? err.message : "Okänt fel.",
       );
       return;
     }
 
-    // Härifrån ÄR passet avslutat. Rensningen ligger utanför try:n ovan
-    // med flit: misslyckas den får det inte se ut som att avslutet
-    // misslyckades, för då skulle användaren bli kvar på ett pass som
-    // redan är avslutat - och kunna trycka "Släng" på det senare.
-    finished.current = true;
-    await clearActiveWorkout().catch(() => {});
-    onFinish();
+    onClose();
   }
 
-  function confirmDiscardWorkout() {
-    const setCount = sections.reduce(
-      (total, section) =>
-        total + section.sets.filter((s) => s.saved !== null).length,
-      0,
-    );
-    Alert.alert(
-      "Avbryt pass?",
-      setCount === 0
-        ? "Passet tas bort. Det går inte att ångra."
-        : `Passet och dess ${setCount} loggade set tas bort. Det går inte att ångra.`,
-      [
-        { text: "Fortsätt passet", style: "cancel" },
-        {
-          text: "Avbryt pass",
-          style: "destructive",
-          onPress: () => void handleDiscardWorkout(),
-        },
-      ],
-    );
-  }
-
-  async function handleDiscardWorkout() {
-    try {
-      await deleteWorkout(workoutId);
-    } catch (err) {
-      Alert.alert(
-        "Kunde inte avbryta passet",
-        err instanceof Error ? err.message : "Okänt fel.",
-      );
-      return;
-    }
-
-    // Samma resonemang som i handleFinish: raderingen är beställd, så
-    // passet ska inte ligga kvar som pågående även om rensningen strular.
-    finished.current = true;
-    await clearActiveWorkout().catch(() => {});
-    onDiscard();
-  }
-
-  // Att rendera passet innan blobben lästs in skulle visa ett tomt pass
-  // i ett ögonblick även när det finns set att återuppta.
-  if (!hydrated) {
+  if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator />
       </View>
     );
   }
+
+  if (loadError !== null) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.errorText}>{loadError}</Text>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => void load()}>
+          <Text style={styles.secondaryButtonText}>Försök igen</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onClose}>
+          <Text style={styles.linkText}>Tillbaka</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const durationMinutes =
+    startedAt && endedAt
+      ? Math.round((endedAt.getTime() - startedAt.getTime()) / 60000)
+      : null;
 
   return (
     <KeyboardAvoidingView
@@ -585,14 +586,46 @@ export function ActiveWorkoutScreen({
         // till att stänga tangentbordet istället för att träffa knappen.
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Pågående pass</Text>
+        <Text style={styles.title}>Redigera pass</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Namn</Text>
+          <TextInput
+            style={styles.input}
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            placeholder="T.ex. Ben & rygg"
+            placeholderTextColor="#9ca3af"
+            maxLength={NAME_MAX_LENGTH}
+            returnKeyType="done"
+          />
+          <Text style={styles.hintText}>
+            Utan namn visas passets datum, som förut.
+          </Text>
+
+          {startedAt && (
+            <DateTimeField label="Start" value={startedAt} onChange={setStartedAt} />
+          )}
+          {endedAt && (
+            <DateTimeField label="Slut" value={endedAt} onChange={setEndedAt} />
+          )}
+          {durationMinutes !== null && (
+            <Text
+              style={durationMinutes < 0 ? styles.errorText : styles.hintText}
+            >
+              {durationMinutes < 0
+                ? "Sluttiden ligger före starten."
+                : `Längd: ${durationMinutes} min`}
+            </Text>
+          )}
+        </View>
 
         {sections.map((section) => (
           <ExerciseSection
             key={section.workoutExerciseId}
             title={section.exerciseName}
             sets={section.sets}
-            previousSets={section.previousSets}
+            previousSets={NO_PREVIOUS_SETS}
             flaggedSetIds={flaggedSetIds}
             pendingFocusId={pendingFocusId}
             inputRefs={firstInputs}
@@ -614,19 +647,19 @@ export function ActiveWorkoutScreen({
           <Text style={styles.secondaryButtonText}>Lägg till övning</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={confirmDiscardWorkout}>
-          <Text style={styles.discardText}>Avbryt pass</Text>
+        <TouchableOpacity onPress={confirmDeleteWorkout}>
+          <Text style={styles.deleteWorkoutText}>Ta bort passet</Text>
         </TouchableOpacity>
       </ScrollView>
 
       <SyncStatusBanner
         online={online}
         pendingCount={pendingCount}
-        offlineLabel="Offline – loggas lokalt och synkas senare"
+        offlineLabel="Offline – ändringarna sparas lokalt och synkas senare"
       />
 
-      <TouchableOpacity style={styles.finishButton} onPress={handleFinish}>
-        <Text style={styles.buttonText}>Avsluta pass</Text>
+      <TouchableOpacity style={styles.doneButton} onPress={() => void handleDone()}>
+        <Text style={styles.doneButtonText}>Klar</Text>
       </TouchableOpacity>
 
       <Modal
@@ -642,7 +675,7 @@ export function ActiveWorkoutScreen({
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.exerciseRow}
-                onPress={() => handlePickExercise(item)}
+                onPress={() => void handlePickExercise(item)}
               >
                 <Text style={styles.exerciseName}>{item.name}</Text>
                 {item.muscle_group && (
@@ -679,29 +712,61 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
   },
+  card: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  hintText: {
+    color: "#6b7280",
+    fontSize: 13,
+  },
+  errorText: {
+    color: "#b91c1c",
+    textAlign: "center",
+  },
   secondaryButton: {
     borderWidth: 1,
     borderColor: "#111827",
     borderRadius: 8,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: "center",
   },
   secondaryButtonText: {
     color: "#111827",
     fontWeight: "600",
   },
-  discardText: {
+  linkText: {
+    color: "#6b7280",
+    paddingVertical: 8,
+  },
+  deleteWorkoutText: {
     textAlign: "center",
     color: "#b91c1c",
     paddingVertical: 8,
   },
-  finishButton: {
-    backgroundColor: "#b91c1c",
+  doneButton: {
+    backgroundColor: "#111827",
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: "center",
   },
-  buttonText: {
+  doneButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",

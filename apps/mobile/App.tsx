@@ -5,6 +5,7 @@ import { TabBar } from "./components/TabBar";
 import { AuthProvider, useAuth } from "./lib/auth-context";
 import { subscribeToSyncErrors } from "./lib/offline-queue";
 import { ActiveWorkoutScreen } from "./screens/ActiveWorkoutScreen";
+import { EditWorkoutScreen } from "./screens/EditWorkoutScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
@@ -12,7 +13,8 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 type Screen =
   | { name: "home" }
   | { name: "profile" }
-  | { name: "workout"; workoutId: string };
+  | { name: "workout"; workoutId: string }
+  | { name: "edit-workout"; workoutId: string };
 
 function AppContent() {
   const { session, loading } = useAuth();
@@ -60,10 +62,29 @@ function AppContent() {
     );
   }
 
+  // Egen gren i routern, inte en modal ovanpå profilen. Två skäl:
+  // övningsväljaren är redan en modal, och nästlade helskärmsmodaler är
+  // ostadiga på iOS - och att lämna profilen tvingar fram den omladdning
+  // av historik och statistik som ändå behövs efter en ändring.
+  if (screen.name === "edit-workout") {
+    return (
+      <EditWorkoutScreen
+        userId={session.user.id}
+        workoutId={screen.workoutId}
+        onClose={() => setScreen({ name: "profile" })}
+      />
+    );
+  }
+
   return (
     <View style={styles.flex}>
       {screen.name === "profile" ? (
-        <ProfileScreen session={session} />
+        <ProfileScreen
+          session={session}
+          onEditWorkout={(workoutId) =>
+            setScreen({ name: "edit-workout", workoutId })
+          }
+        />
       ) : (
         <HomeScreen
           userId={session.user.id}

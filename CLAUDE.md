@@ -25,7 +25,10 @@ API server – clients talk directly to Supabase, security via RLS.
 - `profiles` – 1:1 with auth.users (display name, unit kg/lbs).
 - `exercises` – exercise catalog: name, muscle group. Global rows
   (user_id null) + the user's own.
-- `workouts` – a session: user_id, started_at, ended_at, note.
+- `workouts` – a session: user_id, started_at, ended_at, name, note.
+  `name` is an optional title set when editing a logged workout; when
+  it is null the UI falls back to the date. `note` is a separate,
+  still-unused free-text field – a note about the session, not a title.
 - `workout_exercises` – an exercise within a session: workout_id,
   exercise_id, order.
 - `sets` – a set: workout_exercise_id, set_nr, reps, weight_kg.
@@ -133,6 +136,33 @@ workout's duration by its set count.
       `on delete cascade`. "Starta nytt pass" is hidden while a workout
       is active: there is only one slot, so a new one would overwrite
       the old beyond reach
+- [x] Edit a logged workout afterwards, reached from the workout detail
+      view under Profil (`apps/mobile/screens/EditWorkoutScreen.tsx`,
+      its own branch in the App.tsx router - not a modal, since the
+      exercise picker is already one and nested full-screen modals are
+      flaky on iOS). Name, start/end time, add/remove exercises, full
+      set editing, and deleting the workout outright.
+      The screen opens ONLY when online and the sync queue is drained
+      (`drainQueue`). That is what makes the counters safe: new
+      `order_index`/`set_nr` are `max+1` over what the server returns
+      (`fetchWorkoutForEdit`), which is only true when everything that
+      exists has reached the server. This is the opposite trade-off
+      from an active workout, whose counters must be persisted verbatim
+      because it can be offline and holds half-filled rows that were
+      never written. Dying mid-edit is safe: the queued rows are on
+      disk with their numbers, and the next open drains before reading
+      a new max.
+      Name and times are written on "Klar", not on every keystroke -
+      they are three columns of one row, and the iOS picker fires
+      continuously while scrolling. Set rows keep writing on blur.
+      Times are ALWAYS sent as a pair: a lone new `started_at` is
+      checked against the stored `ended_at` by
+      `workouts_ended_after_started`, and a 23514 is permanent, so the
+      queue would silently drop the edit.
+      Deleting a finished workout is what forced `fetchWorkoutHistory`
+      from offset to keyset pagination on `(started_at, id)` - an
+      offset skips a row as soon as anything above it is deleted or
+      moved, and editing a start time moves rows too
 - [x] Profile page in the app, reached from a hand-rolled bottom tab
       bar (Hem / Profil) that hides during an active workout. Editable
       display name (first code anywhere to touch `profiles` — upsert,

@@ -41,6 +41,18 @@ type QueuedAction =
       type: "end_workout";
       workout_id: string;
       ended_at: string;
+    }
+  | {
+      // Redigering av ett redan avslutat pass: namn och/eller tider.
+      // Utelämnat fält = rör inte kolumnen; `name: null` = töm den.
+      // Skillnaden överlever JSON-rundturen till disk eftersom
+      // undefined-nycklar försvinner i serialiseringen, medan null
+      // ligger kvar.
+      type: "update_workout";
+      workout_id: string;
+      name?: string | null;
+      started_at?: string;
+      ended_at?: string;
     };
 
 const STORAGE_KEY = "repcount:offline-queue";
@@ -161,6 +173,31 @@ async function applyAction(action: QueuedAction): Promise<void> {
       if (error) throw error;
       return;
     }
+    case "update_workout": {
+      // Bara de fält som faktiskt ändrats skickas, så ett namnbyte inte
+      // råkar skriva tillbaka tider och tvärtom. `!== undefined` istället
+      // för `in`: då betyder null "töm kolumnen" utan att ett anrop som
+      // råkar skicka `name: undefined` tolkas som en tömning.
+      const patch: {
+        name?: string | null;
+        started_at?: string;
+        ended_at?: string;
+      } = {};
+      if (action.name !== undefined) patch.name = action.name;
+      if (action.started_at !== undefined) patch.started_at = action.started_at;
+      if (action.ended_at !== undefined) patch.ended_at = action.ended_at;
+      // En tom patch är ingen no-op mot Postgrest utan ett 400-fel, och
+      // det felet har en `code` - alltså permanent, alltså en dialog för
+      // något som inte var en ändring. Fånga det här istället.
+      if (Object.keys(patch).length === 0) return;
+
+      const { error } = await supabase
+        .from("workouts")
+        .update(patch)
+        .eq("id", action.workout_id);
+      if (error) throw error;
+      return;
+    }
   }
 }
 
@@ -201,6 +238,24 @@ export async function flush(): Promise<void> {
   } finally {
     flushing = false;
   }
+}
+
+// Tömmer kön och svarar om den faktiskt BLEV tom.
+//
+// Redigering av ett avslutat pass delar ut nya order_index/set_nr som
+// max+1 över det servern svarar med (se fetchWorkoutForEdit i
+// queries.ts). Det stämmer bara om allt som finns har nått servern -
+// ligger en "add_exercise" kvar i kön är serverns max för lågt, samma
+// nummer delas ut igen, och unique (workout_id, order_index) fäller
+// upserten med 23505. Det är ett permanent fel, så kön slänger åtgärden
+// och setsen under övningen följer med på sin trasiga referens.
+//
+// Returnerar false också när en annan flush redan pågår (flush() nedan
+// returnerar direkt då) - fel åt det säkra hållet: hellre "försök igen"
+// än ett nummer som kanske redan är taget.
+export async function drainQueue(): Promise<boolean> {
+  await flush();
+  return (await getPendingCount()) === 0;
 }
 
 export async function getPendingCount(): Promise<number> {
