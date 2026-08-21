@@ -104,9 +104,16 @@ workout's duration by its set count.
       gaps are harmless since no stats function reads `set_nr`, and
       rows are labelled by position
 - [x] Row-first set entry: "Lägg till set" appends an empty row that
-      is filled in place, instead of a separate form. A row is only
-      written once both fields parse, and "Avsluta pass" refuses to
-      finish while anything is blank, half-filled or unparseable.
+      is filled in place, instead of a separate form. It always
+      appends, even if the previous row is still blank - the button
+      does what it says, and a blank row is never written anywhere.
+      Adding an exercise seeds set 1 the same way - there is no such
+      thing as an exercise with zero sets, so the row is there from the
+      start. It is deliberately not focused: the exercise picker's
+      modal is still sliding away at that point, and a keyboard racing
+      it is both flaky on iOS and in the way. A row is only written
+      once both fields parse, and "Avsluta pass" refuses to finish
+      while anything is blank, half-filled or unparseable.
       Each row hints the matching set from the previous workout as a
       greyed placeholder (`fetchPreviousSetsForExercise`, cached per
       exercise so it survives being offline)

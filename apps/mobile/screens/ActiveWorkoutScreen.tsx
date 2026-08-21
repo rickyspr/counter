@@ -234,14 +234,26 @@ export function ActiveWorkoutScreen({
         exercise.id,
         orderIndex,
       );
-      nextSetNr.current[workoutExercise.id] = 1;
+      // Man vill alltid ha minst ett set, så övningen kommer med rad 1
+      // redan på plats - annars blir "Lägg till set" ett obligatoriskt
+      // extratryck efter varje övning. Raden är tom, alltså saved: null
+      // och aldrig köad (se LoggedSet); den skrivs först när båda fälten
+      // går att tolka.
+      const firstSet: LoggedSet = {
+        id: newSetId(),
+        setNr: 1,
+        repsDraft: "",
+        weightDraft: "",
+        saved: null,
+      };
+      nextSetNr.current[workoutExercise.id] = firstSet.setNr + 1;
       setSections((prev) => [
         ...prev,
         {
           workoutExerciseId: workoutExercise.id,
           exerciseId: exercise.id,
           exerciseName: exercise.name,
-          sets: [],
+          sets: [firstSet],
           previousSets: [],
         },
       ]);
@@ -268,15 +280,11 @@ export function ActiveWorkoutScreen({
     }
   }
 
+  // Lägger ALLTID till en ny rad, även om den förra fortfarande är tom:
+  // knappen ska göra det den heter. Tomma rader kostar ingenting i
+  // databasen (de köas aldrig) och avslutet kräver ändå att varje rad
+  // fylls i eller tas bort med ✕.
   function handleCreateSetRow(section: Section) {
-    const last = section.sets[section.sets.length - 1];
-    if (last && last.saved === null && parseSetDrafts(last) === null) {
-      // Det finns redan en outfylld rad - flytta markören dit istället
-      // för att stapla tomma rader ovanpå varandra.
-      firstInputs.current[last.id]?.focus();
-      return;
-    }
-
     const setNr = nextSetNr.current[section.workoutExerciseId] ?? 1;
     nextSetNr.current[section.workoutExerciseId] = setNr + 1;
     const id = newSetId();
