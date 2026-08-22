@@ -35,20 +35,38 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_path: string | null
+          bio: string | null
+          birth_date: string | null
+          body_weight_kg: number | null
           created_at: string
           display_name: string | null
+          height_cm: number | null
+          home_gym: string | null
           id: string
           unit: string
         }
         Insert: {
+          avatar_path?: string | null
+          bio?: string | null
+          birth_date?: string | null
+          body_weight_kg?: number | null
           created_at?: string
           display_name?: string | null
+          height_cm?: number | null
+          home_gym?: string | null
           id: string
           unit?: string
         }
         Update: {
+          avatar_path?: string | null
+          bio?: string | null
+          birth_date?: string | null
+          body_weight_kg?: number | null
           created_at?: string
           display_name?: string | null
+          height_cm?: number | null
+          home_gym?: string | null
           id?: string
           unit?: string
         }

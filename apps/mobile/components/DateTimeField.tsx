@@ -13,6 +13,15 @@ interface Props {
   label: string;
   value: Date;
   onChange: (next: Date) => void;
+  // "date" drops the time half entirely. A birth date is a calendar
+  // day; showing 00:00 next to it would invite editing something that
+  // is never stored (profiles.birth_date is a `date`).
+  mode?: "datetime" | "date";
+  // Passed straight through to the picker. Cheaper than validation for
+  // the user: a date they cannot scroll to is a date they cannot be
+  // told off for having chosen.
+  minimumDate?: Date;
+  maximumDate?: Date;
 }
 
 function formatDate(value: Date): string {
@@ -42,13 +51,22 @@ function formatTime(value: Date): string {
 // dialogerna - öppna tidsväljaren inifrån datumväljarens callback -
 // innebär att en dialog öppnas medan den förra fortfarande stängs, och
 // det är ostadigt. Två tryck är tråkigare än ett, men fungerar alltid.
-export function DateTimeField({ label, value, onChange }: Props) {
+export function DateTimeField({
+  label,
+  value,
+  onChange,
+  mode = "datetime",
+  minimumDate,
+  maximumDate,
+}: Props) {
   if (Platform.OS === "android") {
-    const open = (mode: "date" | "time") => {
+    const open = (pickerMode: "date" | "time") => {
       DateTimePickerAndroid.open({
         value,
-        mode,
+        mode: pickerMode,
         is24Hour: true,
+        minimumDate,
+        maximumDate,
         // Väljaren returnerar en Date som behåller de delar man inte
         // valde: datumdialogen tar med befintlig tid, tidsdialogen tar
         // med befintligt datum. Alltså går de att sätta var för sig.
@@ -63,9 +81,11 @@ export function DateTimeField({ label, value, onChange }: Props) {
           <TouchableOpacity style={styles.chip} onPress={() => open("date")}>
             <Text style={styles.chipText}>{formatDate(value)}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chip} onPress={() => open("time")}>
-            <Text style={styles.chipText}>{formatTime(value)}</Text>
-          </TouchableOpacity>
+          {mode === "datetime" && (
+            <TouchableOpacity style={styles.chip} onPress={() => open("time")}>
+              <Text style={styles.chipText}>{formatTime(value)}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -76,9 +96,11 @@ export function DateTimeField({ label, value, onChange }: Props) {
       <Text style={styles.label}>{label}</Text>
       <DateTimePicker
         value={value}
-        mode="datetime"
+        mode={mode}
         display="compact"
         locale="sv-SE"
+        minimumDate={minimumDate}
+        maximumDate={maximumDate}
         onValueChange={(_event, picked) => onChange(picked)}
       />
     </View>

@@ -11,10 +11,12 @@ import { EditWorkoutScreen } from "./screens/EditWorkoutScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
+import { ProfileSettingsScreen } from "./screens/ProfileSettingsScreen";
 
 type Screen =
   | { name: "home" }
   | { name: "profile" }
+  | { name: "profile-settings" }
   | { name: "workout"; workoutId: string }
   | { name: "edit-workout"; workoutId: string };
 
@@ -93,6 +95,19 @@ function AppContent() {
     );
   }
 
+  // Same shape as edit-workout, and for the same two reasons: the tab
+  // bar has no business being visible in a subpage you have to leave
+  // deliberately, and coming back re-mounts ProfileScreen, which is
+  // what reloads the profile after it has been changed.
+  if (screen.name === "profile-settings") {
+    return (
+      <ProfileSettingsScreen
+        session={session}
+        onClose={() => setScreen({ name: "profile" })}
+      />
+    );
+  }
+
   return (
     <View style={styles.flex}>
       {screen.name === "profile" ? (
@@ -101,6 +116,7 @@ function AppContent() {
           onEditWorkout={(workoutId) =>
             setScreen({ name: "edit-workout", workoutId })
           }
+          onOpenSettings={() => setScreen({ name: "profile-settings" })}
         />
       ) : (
         <HomeScreen

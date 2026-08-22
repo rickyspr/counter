@@ -1,3 +1,4 @@
+import { calculateAge } from "@repcount/shared";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -6,17 +7,20 @@ import {
   FlatList,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Avatar } from "../components/Avatar";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { WorkoutDetailModal } from "../components/WorkoutDetailModal";
+import { errorMessage } from "../lib/errors";
+import { signAvatarUrl } from "../lib/media-urls";
 import {
+  fallbackDisplayName,
   fetchProfile,
   fetchTrainingStats,
-  updateDisplayName,
   type TrainingStats,
+  type UserProfile,
 } from "../lib/profile";
 import {
   cursorFor,
@@ -30,6 +34,7 @@ import { useSyncStatus } from "../lib/use-sync-status";
 interface Props {
   session: Session;
   onEditWorkout: (workoutId: string) => void;
+  onOpenSettings: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -67,13 +72,16 @@ function formatTotalVolume(kg: number): string {
   return `${Math.round(kg).toLocaleString("sv-SE")} kg`;
 }
 
-export function ProfileScreen({ session, onEditWorkout }: Props) {
+export function ProfileScreen({
+  session,
+  onEditWorkout,
+  onOpenSettings,
+}: Props) {
   const userId = session.user.id;
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
 
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  const [nameDraft, setNameDraft] = useState("");
-  const [memberSince, setMemberSince] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [stats, setStats] = useState<TrainingStats | null>(null);
 
   const [workouts, setWorkouts] = useState<WorkoutHistoryEntry[]>([]);
@@ -86,14 +94,6 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
   // hämtningen pågår - FlatList kallar den gärna om vid varje scroll-tick.
   const fetchingPage = useRef(false);
 
-  // Har användaren rört namnfältet? En omladdning (nätet vippar, eller
-  // pull-to-refresh) får inte skriva över något man håller på att skriva.
-  const nameDirty = useRef(false);
-  // Senaste värdena, lästa av upprensningen vid unmount - den kör bara en
-  // gång och skulle annars se värdena från första renderingen.
-  const latestName = useRef({ draft: "", saved: null as string | null });
-  latestName.current = { draft: nameDraft, saved: displayName };
-
   const loadFirstPage = useCallback(async () => {
     if (!online) {
       setLoading(false);
@@ -105,17 +105,20 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
     // all() skulle ETT fel (t.ex. att statistik-migrationen inte är
     // pushad än, PGRST202) lämna hela sidan tom trots att både profil
     // och historik svarat. Varje del får misslyckas för sig.
-    const [profile, trainingStats, firstPage] = await Promise.allSettled([
+    const [profileResult, trainingStats, firstPage] = await Promise.allSettled([
       fetchProfile(userId),
       fetchTrainingStats(),
       fetchWorkoutHistory(userId, null),
     ]);
 
-    if (profile.status === "fulfilled") {
-      setDisplayName(profile.value.displayName);
-      // Skriver inte över ett namn som håller på att redigeras.
-      if (!nameDirty.current) setNameDraft(profile.value.displayName ?? "");
-      setMemberSince(profile.value.createdAt ?? session.user.created_at);
+    if (profileResult.status === "fulfilled") {
+      setProfile(profileResult.value);
+      const path = profileResult.value.avatarPath;
+      // Signing is allowed to fail on its own: without a picture the
+      // initials are shown, which beats an empty profile by a mile.
+      setAvatarUrl(
+        path === null ? null : await signAvatarUrl(path).catch(() => null),
+      );
     }
     if (trainingStats.status === "fulfilled") setStats(trainingStats.value);
     if (firstPage.status === "fulfilled") {
@@ -123,19 +126,14 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
       setReachedEnd(firstPage.value.length < WORKOUT_HISTORY_PAGE_SIZE);
     }
 
-    const failure = [profile, trainingStats, firstPage].find(
+    const failure = [profileResult, trainingStats, firstPage].find(
       (result) => result.status === "rejected",
     );
     if (failure?.status === "rejected") {
-      Alert.alert(
-        "Kunde inte hämta allt",
-        failure.reason instanceof Error
-          ? failure.reason.message
-          : "Okänt fel.",
-      );
+      Alert.alert("Kunde inte hämta allt", errorMessage(failure.reason));
     }
     setLoading(false);
-  }, [userId, online, session.user.created_at]);
+  }, [userId, online]);
 
   useEffect(() => {
     loadFirstPage();
@@ -160,62 +158,32 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
       });
       if (next.length < WORKOUT_HISTORY_PAGE_SIZE) setReachedEnd(true);
     } catch (err) {
-      Alert.alert(
-        "Kunde inte hämta fler pass",
-        err instanceof Error ? err.message : "Okänt fel.",
-      );
+      Alert.alert("Kunde inte hämta fler pass", errorMessage(err));
     } finally {
       setLoadingMore(false);
       fetchingPage.current = false;
     }
   }
 
-  // Sparar när fältet tappar fokus, samma mönster som set-raderna i
-  // ActiveWorkoutScreen. Skriver bara när värdet faktiskt ändrats.
-  async function commitName() {
-    const trimmed = nameDraft.trim();
-    if (trimmed === (displayName ?? "")) return;
-    try {
-      const saved = await updateDisplayName(userId, trimmed);
-      nameDirty.current = false;
-      setDisplayName(saved);
-      setNameDraft(saved ?? "");
-    } catch (err) {
-      setNameDraft(displayName ?? "");
-      nameDirty.current = false;
-      Alert.alert(
-        "Kunde inte spara namnet",
-        err instanceof Error ? err.message : "Okänt fel.",
-      );
-    }
-  }
-
-  // onBlur räcker inte. Flikraden och "Logga ut" ligger UTANFÖR listan,
-  // så ett tryck där lämnar fältet fokuserat, och React Native kallar
-  // inte onBlur när en TextInput avmonteras - namnet man just skrivit
-  // vore borta vid återkomsten. Samma fälla som handleFinish i
-  // ActiveWorkoutScreen dokumenterar för set-fälten.
-  useEffect(() => {
-    return () => {
-      const { draft, saved } = latestName.current;
-      if (!nameDirty.current) return;
-      if (draft.trim() === (saved ?? "")) return;
-      // Skärmen försvinner - inget att visa ett fel på, och kön är inte
-      // rätt plats för en profiländring. Bäst möjliga försök.
-      void updateDisplayName(userId, draft).catch(() => {});
-    };
-  }, [userId]);
-
-  // Google-inloggade får ett namn gratis i user_metadata; e-postkonton
-  // har inget alls förrän man skriver in det.
-  const fallbackName =
-    (session.user.user_metadata?.full_name as string | undefined) ??
-    session.user.email ??
-    "Namnlös";
+  // Everything on this screen is read-only; changes are made in
+  // ProfileSettingsScreen. That is why the name field, its blur-save
+  // and the save-on-unmount rescue are gone - those problems existed
+  // only while a TextInput here could be unmounted by the tab bar
+  // mid-edit.
+  const fallbackName = fallbackDisplayName(session);
+  const memberSince = profile?.createdAt ?? session.user.created_at;
+  const age = profile?.birthDate ? calculateAge(profile.birthDate) : null;
 
   const header = (
     <View style={styles.headerContent}>
-      <Text style={styles.title}>Profil</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>Profil</Text>
+        <TouchableOpacity onPress={onOpenSettings}>
+          {/* Text, not a gear icon: no icon package is installed - see
+              the comment in TabBar. */}
+          <Text style={styles.editLink}>Redigera</Text>
+        </TouchableOpacity>
+      </View>
 
       <SyncStatusBanner
         online={online}
@@ -224,26 +192,34 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
       />
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Visningsnamn</Text>
-        <TextInput
-          style={styles.input}
-          value={nameDraft}
-          onChangeText={(text) => {
-            nameDirty.current = true;
-            setNameDraft(text);
-          }}
-          onBlur={() => void commitName()}
-          placeholder={fallbackName}
-          placeholderTextColor="#9ca3af"
-          autoCapitalize="words"
-          returnKeyType="done"
-        />
-        <Text style={styles.metaText}>{session.user.email}</Text>
-        {memberSince && (
-          <Text style={styles.metaText}>
-            Medlem sedan {formatMonthYear(memberSince)}
-          </Text>
+        <View style={styles.identityRow}>
+          <Avatar uri={avatarUrl} name={fallbackName} size={72} />
+          <View style={styles.identityText}>
+            <Text style={styles.name} numberOfLines={2}>
+              {profile?.displayName ?? fallbackName}
+            </Text>
+            <Text style={styles.metaText}>{session.user.email}</Text>
+            <Text style={styles.metaText}>
+              Medlem sedan {formatMonthYear(memberSince)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Empty fields are not rendered at all. A profile full of "Ej
+            angivet" is a list of what the user has not done. */}
+        {profile?.homeGym && <Detail label="Hemgym" value={profile.homeGym} />}
+        {age !== null && <Detail label="Ålder" value={`${age} år`} />}
+        {profile?.bodyWeightKg !== null &&
+          profile?.bodyWeightKg !== undefined && (
+            <Detail
+              label="Vikt"
+              value={`${profile.bodyWeightKg.toLocaleString("sv-SE")} kg`}
+            />
+          )}
+        {profile?.heightCm !== null && profile?.heightCm !== undefined && (
+          <Detail label="Längd" value={`${profile.heightCm} cm`} />
         )}
+        {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
       </View>
 
       <View style={styles.card}>
@@ -367,6 +343,15 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
   );
 }
 
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.stat}>
@@ -395,9 +380,20 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 4,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   title: {
     fontSize: 32,
     fontWeight: "700",
+  },
+  editLink: {
+    color: "#111827",
+    fontSize: 16,
+    fontWeight: "600",
   },
   card: {
     backgroundColor: "#f3f4f6",
@@ -409,17 +405,40 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
   },
-  input: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+  identityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  // Without flexShrink a long name or email address overflows the card
+  // instead of wrapping.
+  identityText: {
+    flexShrink: 1,
+    gap: 2,
+  },
+  name: {
+    fontSize: 20,
+    fontWeight: "700",
   },
   metaText: {
     color: "#6b7280",
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  detailLabel: {
+    color: "#6b7280",
+  },
+  detailValue: {
+    flexShrink: 1,
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  bio: {
+    color: "#374151",
+    marginTop: 4,
   },
   statsGrid: {
     flexDirection: "row",

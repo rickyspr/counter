@@ -22,7 +22,17 @@ Backend: Supabase (Postgres + Auth + auto-generated API). No custom
 API server – clients talk directly to Supabase, security via RLS.
 
 ## Data model (Postgres)
-- `profiles` – 1:1 with auth.users (display name, unit kg/lbs).
+- `profiles` – 1:1 with auth.users: display name, unit kg/lbs, and the
+  optional details in `20260822100000_profile_details.sql` –
+  `avatar_path` (a path into the private `avatars` bucket, never a URL),
+  `home_gym`, `birth_date`, `body_weight_kg`, `height_cm`, `bio`. All
+  nullable; a profile is optional decoration around the training data.
+  Age is derived from `birth_date` in the client (`calculateAge` in
+  `packages/shared/src/profile.ts`) and never stored – an `age` column
+  is silently wrong from the day after every birthday. The bounds ARE
+  check constraints here, unlike `workouts_name_length`: profile writes
+  bypass the sync queue, so a 23514 is a dialog the user can act on
+  rather than a silently dropped action.
 - `exercises` – exercise catalog: name, muscle group. Global rows
   (user_id null) + the user's own.
 - `workouts` – a session: user_id, started_at, ended_at, name, note.
@@ -245,6 +255,40 @@ workout's duration by its set count.
       from the response and would look deleted. Unlike `drainQueue()` it
       does not await the flush – the head can be a twenty-megabyte video.
 
+- [x] Editable profile details on a subpage under Profil
+      (`apps/mobile/screens/ProfileSettingsScreen.tsx`, its own branch in
+      the App.tsx router for the same two reasons as EditWorkoutScreen:
+      the tab bar has no business being visible in a subpage, and coming
+      back re-mounts ProfileScreen, which is what reloads it). Avatar,
+      display name, home gym, birth date, body weight, height, short bio.
+      The profile page itself is now READ-ONLY, and that is what removed
+      the inline name field together with its blur-save and its
+      save-on-unmount rescue - the whole apparatus existed only because a
+      TextInput could be unmounted mid-edit by the tab bar.
+      Everything is written on "Spara" as ONE upsert. They are columns of
+      a single row, so per-field saving would be N round trips and a
+      half-saved profile; it is also what lets "Avbryt" mean something.
+      A picked image is a LOCAL PREVIEW until then - uploading on pick
+      would leave a file in the bucket for every picture the user tried
+      and rejected.
+      The bytes go straight to Storage, NOT through the media queue. That
+      queue exists for files big enough to bloat the sync queue, uploads
+      that must survive days offline, and a video that must not block the
+      sets behind it - none of which apply to a small image written from
+      a screen that already requires a connection. Own private bucket
+      `avatars`, not a folder inside `workout-media`: that bucket allows
+      50 MB videos, and its local staging directory is swept by
+      `sweepOrphanedMedia` on every app start.
+      Every upload gets a FRESH uuid path. Reusing one path per user
+      would leave both the signed-URL cache (keyed by path) and React
+      Native's Image cache (keyed by URI) serving the previous picture.
+      Order is upload → write row → delete the old object; a row write
+      that fails deletes the object it just uploaded. The reverse order
+      can leave a profile pointing at a file that is already gone
+- [ ] Body weight over time. Today `body_weight_kg` is one current
+      value; a history is its own table plus a chart on the web, not a
+      column to swap out later
+
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google
   right away?
@@ -253,6 +297,11 @@ workout's duration by its set count.
   stats-only?
 - Should the web app show workout media? Nothing reads `workout_media`
   there today.
+- Should the web app show the profile at all? It has never read
+  `profiles`, so the avatar and the new details are mobile-only.
+- The kg/lbs setting still has no UI. `profiles.unit` exists but nothing
+  reads it, and a toggle that changes nothing would be worse than none -
+  it needs every weight in both apps to honour it first.
 
 ## Environment
 - Node 20+, pnpm 9+, Expo CLI, Supabase CLI
