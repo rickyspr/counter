@@ -51,6 +51,32 @@ type QueuedAction =
       name?: string;
     }
   | {
+      // Metadataraden för en bild/video. Köas INTE av UI:t utan av
+      // uppladdningskön (media-queue.ts), först när byte:sen landat i
+      // Storage. Två skäl till att den ändå går genom den här kön:
+      //
+      // 1. Raden har en FK till workouts, och FIFO gör att den per
+      //    definition hamnar bakom sitt "start_workout" - passet kan ha
+      //    loggats helt offline och finnas bara i kön. Ingen ny
+      //    ordningslogik behövs.
+      // 2. Den är liten. Byte:sen får aldrig komma in i den här kön:
+      //    persist() skriver om HELA kön vid varje enqueue, och kön
+      //    blockerar på sitt huvud - en video hade låst all annan synk.
+      type: "add_media";
+      id: string;
+      workout_id: string;
+      media_type: string;
+      storage_path: string;
+      added_at: string;
+      width: number | null;
+      height: number | null;
+      duration_ms: number | null;
+    }
+  | {
+      type: "delete_media";
+      id: string;
+    }
+  | {
       // Redigering av ett redan avslutat pass: namn och/eller tider.
       // Utelämnat fält = rör inte kolumnen; `name: null` = töm den.
       // Skillnaden överlever JSON-rundturen till disk eftersom
@@ -170,6 +196,35 @@ async function applyAction(action: QueuedAction): Promise<void> {
         .from("workouts")
         .delete()
         .eq("id", action.workout_id);
+      if (error) throw error;
+      return;
+    }
+    case "add_media": {
+      // Upsert av samma skäl som setsen ovan: uppladdningskön kan spela
+      // upp samma media igen efter ett tappat svar, och då ska raden
+      // skrivas över istället för att krocka med sig själv.
+      const { error } = await supabase.from("workout_media").upsert({
+        id: action.id,
+        workout_id: action.workout_id,
+        media_type: action.media_type,
+        storage_path: action.storage_path,
+        added_at: action.added_at,
+        width: action.width,
+        height: action.height,
+        duration_ms: action.duration_ms,
+      });
+      if (error) throw error;
+      return;
+    }
+    case "delete_media": {
+      // Bara raden. Själva filen i Storage städas av media-queue.ts -
+      // `on delete cascade` når inte dit, och en rad utan fil är ett
+      // mindre problem än en fil utan rad (den senare syns aldrig igen
+      // men äter kvot för alltid).
+      const { error } = await supabase
+        .from("workout_media")
+        .delete()
+        .eq("id", action.id);
       if (error) throw error;
       return;
     }

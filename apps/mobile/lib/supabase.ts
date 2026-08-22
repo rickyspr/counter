@@ -3,13 +3,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { createSupabaseClient } from "@repcount/shared";
 
-const { supabaseUrl, supabaseAnonKey } = Constants.expoConfig?.extra ?? {};
+const extra = Constants.expoConfig?.extra ?? {};
 
-if (typeof supabaseUrl !== "string" || typeof supabaseAnonKey !== "string") {
+if (
+  typeof extra.supabaseUrl !== "string" ||
+  typeof extra.supabaseAnonKey !== "string"
+) {
   throw new Error(
     "SUPABASE_URL/SUPABASE_ANON_KEY saknas. Kontrollera .env i repo-roten.",
   );
 }
+
+// Exporteras för uppladdningskön (media-queue.ts), som inte kan gå via
+// supabase-js: filen måste streamas från disk med Expos File.upload för
+// att en video inte ska läsas in i minnet i sin helhet. Den anropar
+// alltså Storage-REST:et direkt och behöver både bas-URL och anon-nyckel.
+// Uttryckligen typade, inte återexporterade ur `extra` - det objektet är
+// otypat och exporten hade smittat anroparna med `any`.
+export const supabaseUrl: string = extra.supabaseUrl;
+export const supabaseAnonKey: string = extra.supabaseAnonKey;
 
 export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
   auth: {

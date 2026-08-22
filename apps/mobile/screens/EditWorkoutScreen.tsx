@@ -16,21 +16,34 @@ import {
 } from "react-native";
 import { DateTimeField } from "../components/DateTimeField";
 import { ExerciseSection } from "../components/ExerciseSection";
+import { MediaStrip } from "../components/MediaStrip";
+import { MediaViewer } from "../components/MediaViewer";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
+import type { MediaItem } from "../lib/media-item";
+import { pickWorkoutMedia } from "../lib/media-picker";
+import {
+  isMediaQueueDrained,
+  subscribeToPendingMediaIds,
+} from "../lib/media-queue";
+import { signMediaUrls } from "../lib/media-urls";
 import { getOnlineStatus } from "../lib/network";
 import { drainQueue } from "../lib/offline-queue";
 import {
   addExerciseToWorkout,
+  addWorkoutMedia,
   deleteSet,
   deleteWorkout,
   fetchExerciseCatalog,
   fetchWorkoutForEdit,
   newSetId,
+  removeAllWorkoutMedia,
   removeExerciseFromWorkout,
+  removeWorkoutMedia,
   saveSet,
   updateWorkoutDetails,
   type ExerciseOption,
   type PreviousSet,
+  type WorkoutMediaRow,
 } from "../lib/queries";
 import {
   isUnchanged,
@@ -74,8 +87,17 @@ interface ServerMeta {
   endedAt: string;
 }
 
+// Media på den här skärmen är av två slag samtidigt: det som redan
+// ligger på servern, och det man just lagt till och som fortfarande
+// laddas upp. `localUri` är skillnaden - den är satt bara för det
+// nytillagda, och är då det enda som går att visa (någon signerad URL
+// finns inte förrän filen kommit fram).
+interface EditMedia extends WorkoutMediaRow {
+  localUri: string | null;
+}
+
 export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
-  const { online, pendingCount } = useSyncStatus();
+  const { online, pendingCount, pendingMediaCount } = useSyncStatus();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -89,6 +111,13 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
 
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [flaggedSetIds, setFlaggedSetIds] = useState<string[]>([]);
+
+  const [media, setMedia] = useState<EditMedia[]>([]);
+  const [mediaUrls, setMediaUrls] = useState<Map<string, string>>(new Map());
+  const [pendingMediaIds, setPendingMediaIds] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
+  useEffect(() => subscribeToPendingMediaIds(setPendingMediaIds), []);
 
   // Nästa lediga order_index för passet, och nästa lediga set_nr per
   // övning - båda uträknade som max+1 av fetchWorkoutForEdit.
@@ -124,6 +153,14 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
           "Det finns ändringar som inte hunnit synkas. Försök igen om en stund.",
         );
       }
+      // Samma krav, andra kön. Media som ännu inte laddats upp finns
+      // inte i svaret från servern - remsan hade sett ut som om bilden
+      // aldrig lagts till, och en radering här hade tagit bort fel sak.
+      if (!(await isMediaQueueDrained())) {
+        throw new Error(
+          "Det finns bilder eller videor som inte hunnit laddas upp. Försök igen om en stund.",
+        );
+      }
 
       const workout = await fetchWorkoutForEdit(userId, workoutId);
       nextOrderIndex.current = workout.nextOrderIndex;
@@ -136,6 +173,14 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
       setNameDraft(workout.name ?? "");
       setStartedAt(new Date(workout.startedAt));
       setEndedAt(new Date(workout.endedAt));
+      setMedia(workout.media.map((item) => ({ ...item, localUri: null })));
+      setViewerIndex(null);
+      // Bucketen är privat, så rutorna är tomma tills URL:erna kommit.
+      // Ett fel här stoppar INTE inläsningen av passet: går bilderna
+      // inte att visa ska set och tider ändå gå att rätta.
+      signMediaUrls(workout.media.map((item) => item.storagePath))
+        .then(setMediaUrls)
+        .catch(() => {});
       setSections(
         workout.exercises.map((exercise) => ({
           workoutExerciseId: exercise.workoutExerciseId,
@@ -379,6 +424,66 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
     }
   }
 
+  // Samma väg som i det pågående passet: filen kopieras lokalt och
+  // läggs i uppladdningskön. Skärmen öppnades med tömd kö, men det
+  // hindrar inte att man lägger till nytt medan man är kvar här - det
+  // nya visas från sin lokala fil tills det kommit fram.
+  async function handleAddMedia() {
+    const imported = await pickWorkoutMedia();
+    if (imported === null) return;
+    try {
+      const persisted = await addWorkoutMedia(userId, workoutId, imported);
+      setMedia((prev) => [
+        ...prev,
+        {
+          id: persisted.id,
+          mediaType: persisted.mediaType,
+          storagePath: persisted.storagePath,
+          durationMs: persisted.durationMs,
+          localUri: persisted.localUri,
+        },
+      ]);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte lägga till filen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    }
+  }
+
+  function confirmRemoveMedia(item: MediaItem) {
+    Alert.alert(
+      item.mediaType === "video" ? "Ta bort videon?" : "Ta bort bilden?",
+      "Den tas bort från passet. Det går inte att ångra.",
+      [
+        { text: "Avbryt", style: "cancel" },
+        {
+          text: "Ta bort",
+          style: "destructive",
+          onPress: () => void handleRemoveMedia(item.id),
+        },
+      ],
+    );
+  }
+
+  async function handleRemoveMedia(mediaId: string) {
+    const target = media.find((item) => item.id === mediaId);
+    if (!target) return;
+    try {
+      // Tar bort raden, filen OCH en eventuell uppladdning som inte
+      // hunnit köras - se removeWorkoutMedia.
+      await removeWorkoutMedia(userId, target.id, target.storagePath);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte ta bort filen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+      return;
+    }
+    setViewerIndex(null);
+    setMedia((prev) => prev.filter((item) => item.id !== mediaId));
+  }
+
   function confirmDeleteWorkout() {
     const setCount = sections.reduce(
       (total, section) =>
@@ -405,6 +510,9 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
     try {
       // Övningar och set städas av `on delete cascade`.
       await deleteWorkout(workoutId);
+      // Mediaraderna också - men INTE filerna. Storage vet ingenting om
+      // public-schemat, så de måste tas bort uttryckligen.
+      await removeAllWorkoutMedia(userId, media);
     } catch (err) {
       Alert.alert(
         "Kunde inte ta bort passet",
@@ -579,6 +687,17 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
       ? Math.round((endedAt.getTime() - startedAt.getTime()) / 60000)
       : null;
 
+  // Nytillagt visas från den lokala filen, redan uppladdat från sin
+  // signerade URL. null medan signeringen pågår - rutan blir tom istället
+  // för att försvinna, så antalet inte hoppar.
+  const mediaItems: MediaItem[] = media.map((item) => ({
+    id: item.id,
+    mediaType: item.mediaType,
+    uri: item.localUri ?? mediaUrls.get(item.storagePath) ?? null,
+    durationMs: item.durationMs,
+    pending: pendingMediaIds.includes(item.id),
+  }));
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -658,6 +777,15 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
           <Text style={styles.secondaryButtonText}>Lägg till övning</Text>
         </TouchableOpacity>
 
+        {/* Samma placering som i det pågående passet - sist, efter
+            övningarna. */}
+        <MediaStrip
+          items={mediaItems}
+          onAdd={() => void handleAddMedia()}
+          onRemove={confirmRemoveMedia}
+          onOpen={setViewerIndex}
+        />
+
         <TouchableOpacity onPress={confirmDeleteWorkout}>
           <Text style={styles.deleteWorkoutText}>Ta bort passet</Text>
         </TouchableOpacity>
@@ -666,6 +794,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
       <SyncStatusBanner
         online={online}
         pendingCount={pendingCount}
+        pendingMediaCount={pendingMediaCount}
         offlineLabel="Offline – ändringarna sparas lokalt och synkas senare"
       />
 
@@ -700,6 +829,14 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {viewerIndex !== null && viewerIndex < mediaItems.length && (
+        <MediaViewer
+          items={mediaItems}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

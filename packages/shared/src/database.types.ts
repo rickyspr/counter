@@ -128,6 +128,50 @@ export type Database = {
           },
         ]
       }
+      workout_media: {
+        Row: {
+          added_at: string
+          created_at: string
+          duration_ms: number | null
+          height: number | null
+          id: string
+          media_type: string
+          storage_path: string
+          width: number | null
+          workout_id: string
+        }
+        Insert: {
+          added_at?: string
+          created_at?: string
+          duration_ms?: number | null
+          height?: number | null
+          id?: string
+          media_type: string
+          storage_path: string
+          width?: number | null
+          workout_id: string
+        }
+        Update: {
+          added_at?: string
+          created_at?: string
+          duration_ms?: number | null
+          height?: number | null
+          id?: string
+          media_type?: string
+          storage_path?: string
+          width?: number | null
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_media_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workouts: {
         Row: {
           created_at: string

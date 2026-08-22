@@ -31,7 +31,25 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: "./assets/favicon.png",
   },
-  plugins: ["expo-web-browser", "@react-native-community/datetimepicker"],
+  plugins: [
+    "expo-web-browser",
+    "@react-native-community/datetimepicker",
+    // Behörighetstexterna är det användaren faktiskt läser i iOS-dialogen,
+    // alltså UI-språk: svenska (se CLAUDE.md). $(PRODUCT_NAME) fylls i av
+    // Expo med appens namn.
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "RepCount behöver komma åt dina bilder för att du ska kunna lägga till dem i ett pass.",
+        cameraPermission:
+          "RepCount behöver komma åt kameran för att du ska kunna fota eller filma under ett pass.",
+        microphonePermission:
+          "RepCount behöver komma åt mikrofonen när du spelar in video under ett pass.",
+      },
+    ],
+    "expo-video",
+  ],
   extra: {
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,

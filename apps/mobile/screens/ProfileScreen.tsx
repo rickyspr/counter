@@ -69,7 +69,7 @@ function formatTotalVolume(kg: number): string {
 
 export function ProfileScreen({ session, onEditWorkout }: Props) {
   const userId = session.user.id;
-  const { online, pendingCount } = useSyncStatus();
+  const { online, pendingCount, pendingMediaCount } = useSyncStatus();
 
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
@@ -217,7 +217,11 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
     <View style={styles.headerContent}>
       <Text style={styles.title}>Profil</Text>
 
-      <SyncStatusBanner online={online} pendingCount={pendingCount} />
+      <SyncStatusBanner
+        online={online}
+        pendingCount={pendingCount}
+        pendingMediaCount={pendingMediaCount}
+      />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Visningsnamn</Text>
@@ -332,6 +336,10 @@ export function ProfileScreen({ session, onEditWorkout }: Props) {
               {item.summary.durationMinutes !== null
                 ? ` · ${item.summary.durationMinutes} min`
                 : ""}
+              {/* Bara antalet. Historikfrågan hämtar mediaraderna men
+                  INTE signerade URL:er - att signera för varje pass i
+                  listan vore ett anrop för bilder ingen öppnat. */}
+              {item.media.length > 0 ? ` · 📷 ${item.media.length}` : ""}
             </Text>
           </TouchableOpacity>
         )}

@@ -35,6 +35,12 @@ API server – clients talk directly to Supabase, security via RLS.
 - `workout_exercises` – an exercise within a session: workout_id,
   exercise_id, order.
 - `sets` – a set: workout_exercise_id, set_nr, reps, weight_kg.
+- `workout_media` – an image/video on a session: workout_id, media_type,
+  storage_path, added_at, width/height/duration_ms. The bytes live in the
+  private `workout-media` Storage bucket under
+  `{user_id}/{workout_id}/{media_id}.{ext}`; this table is only metadata.
+  Deliberately has NO `order_index`, unlike its sibling tables – see the
+  TODO entry below.
 
 Weights are always stored in kg (numeric); lbs is presentation only.
 RLS on all tables: users can only see/change their own rows (global
@@ -83,6 +89,13 @@ workout's duration by its set count.
 - `pnpm --filter mobile start` – Expo dev server
 - `pnpm --filter web dev` – run the web app locally
 - `supabase db push` – apply migrations (requires Supabase CLI)
+- `npx expo prebuild --platform ios` – regenerate `apps/mobile/ios/`
+  from `app.config.ts`. REQUIRED after changing the `plugins` array or
+  anything else that lands in Info.plist. `/ios` and `/android` are
+  gitignored and generated, and `expo run:ios` does NOT re-run prebuild
+  when the folder already exists – so a new permission string is simply
+  missing from the built app, and the app crashes the first time it
+  touches the camera or photo library.
 
 ## TODO (in priority order)
 - [x] Initialize the monorepo: pnpm-workspace.yaml, base tsconfig,
@@ -194,6 +207,43 @@ workout's duration by its set count.
       modal with no extra fetch. Profile writes live in
       `apps/mobile/lib/profile.ts`, deliberately outside `queries.ts`
       whose rule is that mutations only ever go through the sync queue
+- [x] Images and video on a workout, added while logging
+      (`ActiveWorkoutScreen`) and changed afterwards
+      (`EditWorkoutScreen`), viewed read-only in the workout detail
+      modal. Files live in the private `workout-media` Storage bucket;
+      `workout_media` holds the metadata.
+      The bytes go through a SECOND queue
+      (`apps/mobile/lib/media-queue.ts`), never the sync queue. The sync
+      queue rewrites itself in full on every enqueue and blocks on its
+      head, so a video would both bloat every subsequent set write and
+      lock all of them behind itself. The metadata row is still a normal
+      `add_media` action in the sync queue – enqueued only AFTER the
+      bytes land – which is what gives it its FK ordering for free: FIFO
+      puts it behind the `start_workout` of a workout that may exist
+      nowhere but the queue. Bytes-then-row is not interchangeable; the
+      other order shows a broken image in history until the file arrives.
+      Storage policies key on the FIRST path segment being `auth.uid()`,
+      with no table lookup. That is a requirement, not an optimisation:
+      the upload happens before the workout row has synced, so a policy
+      joining `workouts` would reject the exact flow the app is built for.
+      `on delete cascade` does NOT reach Storage, so every workout/media
+      deletion also queues an explicit object removal, and an upload that
+      has not run yet is cancelled. Cancelling records the id in a
+      persisted `cancelled` set – without it a photo deleted mid-upload
+      reappears as a row – and the caller ALWAYS also queues
+      `delete_media`, which lands behind any `add_media` that won the
+      race.
+      No `order_index`, unlike sets and exercises. There the number is
+      user-visible identity guarded by a unique constraint, and that
+      constraint is what forces the whole counter apparatus. For media a
+      collision would not reorder a gallery but make an upsert overwrite
+      another row's `storage_path` – a lost photo. Ordering is
+      `(added_at, id)`, with `added_at` set by the client so it reflects
+      when the user added the file, not when it synced.
+      `EditWorkoutScreen` now requires a drained media queue as well as a
+      drained sync queue: media that has not reached the server is absent
+      from the response and would look deleted. Unlike `drainQueue()` it
+      does not await the flush – the head can be a twenty-megabyte video.
 
 ## Open questions (to resolve before the relevant part is built)
 - Login for the MVP: is email/password enough, or Apple/Google
@@ -201,6 +251,8 @@ workout's duration by its set count.
 - Units: kg as default with lbs as a setting – OK?
 - Should the web app also be able to log workouts, or is it
   stats-only?
+- Should the web app show workout media? Nothing reads `workout_media`
+  there today.
 
 ## Environment
 - Node 20+, pnpm 9+, Expo CLI, Supabase CLI

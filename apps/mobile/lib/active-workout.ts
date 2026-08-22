@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { MediaType } from "@repcount/shared";
 import type { PreviousSet } from "./queries";
 import { readJSON, writeJSON } from "./storage";
 
@@ -36,6 +37,22 @@ export interface PersistedSection {
   previousSets: PreviousSet[];
 }
 
+// Media som lagts till under passet. Filen ligger lokalt (se
+// media-store.ts) och laddas upp i bakgrunden av media-queue.ts.
+//
+// Blobben är källan här, inte servern: byte:sen kan ha legat i
+// uppladdningskön i timmar, och ett pass som loggas offline har
+// ingenting alls på servern att läsa. `storagePath` räknas ut redan när
+// filen väljs, så den finns att städa med även innan uppladdningen
+// hunnit köras.
+export interface PersistedMedia {
+  id: string;
+  mediaType: MediaType;
+  localUri: string;
+  storagePath: string;
+  durationMs: number | null;
+}
+
 export interface ActiveWorkout {
   version: 1;
   userId: string;
@@ -52,6 +69,10 @@ export interface ActiveWorkout {
   nextOrderIndex: number;
   nextSetNr: Record<string, number>;
   sections: PersistedSection[];
+  // Valfritt, och versionen är MEDVETET kvar på 1 - av exakt samma skäl
+  // som `name` ovan. Ett pass som pågick när appen uppdaterades saknar
+  // bara fältet, och inga media är precis vad det betyder.
+  media?: PersistedMedia[];
 }
 
 // readJSON gör en ovaliderad `as T`-cast och JSON.parse kastar på
@@ -85,6 +106,17 @@ function isSection(raw: unknown): boolean {
   return section.sets.every(isSet);
 }
 
+function isMedia(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const media = raw as Record<string, unknown>;
+  if (typeof media.id !== "string") return false;
+  if (media.mediaType !== "image" && media.mediaType !== "video") return false;
+  if (typeof media.localUri !== "string") return false;
+  // Utan sökvägen går filen varken att ladda upp eller städa bort.
+  if (typeof media.storagePath !== "string") return false;
+  return media.durationMs === null || typeof media.durationMs === "number";
+}
+
 function parseStored(raw: unknown, userId: string): ActiveWorkout | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Partial<ActiveWorkout>;
@@ -98,6 +130,11 @@ function parseStored(raw: unknown, userId: string): ActiveWorkout | null {
   if (!value.nextSetNr || typeof value.nextSetNr !== "object") return null;
   if (!Array.isArray(value.sections)) return null;
   if (!value.sections.every(isSection)) return null;
+  // Får saknas (blob från en äldre version), men inte vara skräp.
+  if (value.media !== undefined) {
+    if (!Array.isArray(value.media)) return null;
+    if (!value.media.every(isMedia)) return null;
+  }
   return value as ActiveWorkout;
 }
 

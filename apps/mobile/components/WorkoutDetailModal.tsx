@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -6,7 +7,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import type { MediaItem } from "../lib/media-item";
+import { signMediaUrls } from "../lib/media-urls";
 import type { WorkoutHistoryEntry } from "../lib/queries";
+import { MediaStrip } from "./MediaStrip";
+import { MediaViewer } from "./MediaViewer";
 
 interface Props {
   workout: WorkoutHistoryEntry | null;
@@ -33,6 +38,47 @@ function formatDateTime(iso: string): string {
 // härifrån, och modalen ger stäng-beteendet gratis utan att den
 // handrullade routern behöver en back-stack.
 export function WorkoutDetailModal({ workout, onClose, onEdit }: Props) {
+  // Sökväg -> signerad URL. Bucketen är privat, så inget går att visa
+  // förrän de hämtats.
+  const [urls, setUrls] = useState<Map<string, string>>(new Map());
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
+  // Signeras när ETT pass öppnas, inte för hela historiklistan. Ett
+  // anrop för de media man faktiskt tittar på slår tjugo pass värt av
+  // URL:er som ingen ser. Cachen i media-urls.ts gör att samma pass
+  // öppnat två gånger bara kostar första gången.
+  useEffect(() => {
+    setViewerIndex(null);
+    const paths = workout?.media.map((item) => item.storagePath) ?? [];
+    if (paths.length === 0) {
+      setUrls(new Map());
+      return;
+    }
+    let cancelled = false;
+    signMediaUrls(paths)
+      .then((signed) => {
+        if (!cancelled) setUrls(signed);
+      })
+      .catch(() => {
+        // Rutorna blir kvar som tomma platshållare. Ingen dialog: det
+        // här är inte något användaren matat in och inte något hen kan
+        // åtgärda - och passets siffror är fortfarande läsbara.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workout]);
+
+  const mediaItems: MediaItem[] =
+    workout?.media.map((item) => ({
+      id: item.id,
+      mediaType: item.mediaType,
+      uri: urls.get(item.storagePath) ?? null,
+      durationMs: item.durationMs,
+      // Allt som ligger här kommer från servern, alltså är det uppe.
+      pending: false,
+    })) ?? [];
+
   return (
     <Modal
       visible={workout !== null}
@@ -82,6 +128,14 @@ export function WorkoutDetailModal({ workout, onClose, onEdit }: Props) {
               />
             </View>
 
+            {/* Utan onAdd/onRemove är remsan en ren visning. Att lägga
+                till här hade dessutom betytt att ImagePickers egen
+                modal öppnas inifrån den här - lägg till och ta bort hör
+                hemma på redigeringsskärmen, som inte är en modal. */}
+            {mediaItems.length > 0 && (
+              <MediaStrip items={mediaItems} onOpen={setViewerIndex} />
+            )}
+
             {workout.exercises.length === 0 ? (
               <Text style={styles.emptyText}>Inga övningar i passet.</Text>
             ) : (
@@ -107,6 +161,16 @@ export function WorkoutDetailModal({ workout, onClose, onEdit }: Props) {
               ))
             )}
           </ScrollView>
+
+          {/* Overlay, inte en Modal: den här komponenten ÄR redan en
+              modal, och nästlade helskärmsmodaler är ostadiga på iOS. */}
+          {viewerIndex !== null && viewerIndex < mediaItems.length && (
+            <MediaViewer
+              items={mediaItems}
+              initialIndex={viewerIndex}
+              onClose={() => setViewerIndex(null)}
+            />
+          )}
         </View>
       )}
     </Modal>

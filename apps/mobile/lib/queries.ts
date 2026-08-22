@@ -1,9 +1,14 @@
 import {
+  mediaStoragePath,
   summarizeWorkout,
+  type MediaType,
   type SetRecord,
   type WorkoutSummary,
 } from "@repcount/shared";
 import * as Crypto from "expo-crypto";
+import type { PersistedMedia } from "./active-workout";
+import { cancelUpload, enqueueRemove, enqueueUpload } from "./media-queue";
+import type { ImportedMedia } from "./media-store";
 import { enqueue } from "./offline-queue";
 import { readJSON, writeJSON } from "./storage";
 import { supabase } from "./supabase";
@@ -187,6 +192,132 @@ export async function updateWorkoutDetails(
   });
 }
 
+// Media går genom TVÅ köer, till skillnad från allt annat här.
+//
+// Byte:sen läggs i uppladdningskön (media-queue.ts), som laddar upp dem
+// till Storage och FÖRST därefter köar metadataraden i den vanliga
+// synk-kön. Filerna får inte in i synk-kön: den skriver om sig själv i
+// sin helhet vid varje enqueue och blockerar på sitt huvud, så en video
+// hade låst varje set-skrivning bakom sig.
+//
+// Regeln överst i den här filen håller ändå: ingenting nedan skriver
+// direkt mot Supabase.
+export async function addWorkoutMedia(
+  userId: string,
+  workoutId: string,
+  imported: ImportedMedia,
+): Promise<PersistedMedia> {
+  // Sökvägen räknas ut HÄR, en gång, och sparas i passets blob. Då går
+  // filen att städa bort även innan uppladdningen körts - och ett
+  // omförsök landar på exakt samma plats.
+  const storagePath = mediaStoragePath(
+    userId,
+    workoutId,
+    imported.mediaId,
+    imported.extension,
+  );
+
+  await enqueueUpload({
+    userId,
+    mediaId: imported.mediaId,
+    workoutId,
+    storagePath,
+    localUri: imported.localUri,
+    mimeType: imported.mimeType,
+    mediaType: imported.mediaType,
+    // Klientens klocka, inte serverns: passet kan synkas i klump långt
+    // efteråt, och då hade now() gett synk-ordningen istället för den
+    // ordning användaren faktiskt la till filerna.
+    addedAt: new Date().toISOString(),
+    width: imported.width,
+    height: imported.height,
+    durationMs: imported.durationMs,
+  });
+
+  return {
+    id: imported.mediaId,
+    mediaType: imported.mediaType,
+    localUri: imported.localUri,
+    storagePath,
+    durationMs: imported.durationMs,
+  };
+}
+
+// Tar bort media var det än råkar befinna sig: i uppladdningskön, i
+// Storage, i workout_media - eller i flera samtidigt.
+//
+// Alla tre stegen är no-ops när målet inte finns, och det är avsiktligt.
+// De körs ALLA, varje gång, eftersom klienten inte säkert vet var i
+// flödet objektet är: en uppladdning kan vara klar utan att raden hunnit
+// köas. cancelUpload spärrar det vanliga fallet, och "delete_media"
+// täcker kapplöpningen - synk-kön är FIFO, så den hamnar bakom det
+// "add_media" som eventuellt hann köas och nettoresultatet blir rätt.
+export async function removeWorkoutMedia(
+  userId: string,
+  mediaId: string,
+  storagePath: string,
+): Promise<void> {
+  await cancelUpload(mediaId);
+  await enqueue({ type: "delete_media", id: mediaId });
+  await enqueueRemove(userId, [storagePath]);
+}
+
+// Städning när ett HELT pass slängs. Raderna försvinner med
+// `on delete cascade`, men Storage vet ingenting om public-schemat -
+// filerna hade blivit kvar och ätit kvot för alltid.
+export async function removeAllWorkoutMedia(
+  userId: string,
+  media: { id: string; storagePath: string }[],
+): Promise<void> {
+  if (media.length === 0) return;
+  for (const item of media) await cancelUpload(item.id);
+  // Ett enda jobb för hela passet: Storage tar en lista med sökvägar,
+  // och en video kvar i kön ska inte behöva vänta på tio raderingar.
+  await enqueueRemove(
+    userId,
+    media.map((item) => item.storagePath),
+  );
+}
+
+// En mediarad som den ser ut när den kommer från servern. Samma form för
+// historiken och för redigeringen - båda behöver sökvägen (för att kunna
+// signera en URL, och för att kunna städa filen vid radering).
+export interface WorkoutMediaRow {
+  id: string;
+  mediaType: MediaType;
+  storagePath: string;
+  durationMs: number | null;
+}
+
+// media_type är `text` i schemat, alltså `string` i de genererade
+// typerna. Check-villkoret i databasen tillåter bara två värden, men
+// TypeScript vet inte det - och en tredje sträng ska rendera som en bild
+// snarare än krascha.
+function toMediaRow(row: {
+  id: string;
+  media_type: string;
+  storage_path: string;
+  duration_ms: number | null;
+}): WorkoutMediaRow {
+  return {
+    id: row.id,
+    mediaType: row.media_type === "video" ? "video" : "image",
+    storagePath: row.storage_path,
+    durationMs: row.duration_ms,
+  };
+}
+
+// added_at sätts av klienten när filen väljs, så sorteringen är den
+// ordning användaren la till dem - inte den ordning de synkades. id:t
+// bryter lika värden så att ordningen är stabil mellan två hämtningar.
+function sortMedia<T extends { added_at: string; id: string }>(rows: T[]): T[] {
+  return [...rows].sort(
+    (a, b) =>
+      Date.parse(a.added_at) - Date.parse(b.added_at) ||
+      a.id.localeCompare(b.id),
+  );
+}
+
 export interface PreviousSet {
   reps: number;
   weightKg: number;
@@ -309,6 +440,10 @@ export interface WorkoutHistoryEntry {
   endedAt: string | null;
   summary: WorkoutSummary;
   exercises: HistoryExercise[];
+  // Bara metadata. De signerade URL:erna hämtas först när passet
+  // öppnas (se WorkoutDetailModal) - att signera för varje pass i
+  // listan hade varit ett anrop för media ingen tittar på.
+  media: WorkoutMediaRow[];
 }
 
 // Brytpunkten för nästa sida: sista raden på den föregående. Se
@@ -354,7 +489,7 @@ export async function fetchWorkoutHistory(
   let query = supabase
     .from("workouts")
     .select(
-      "id, name, started_at, ended_at, workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg))",
+      "id, name, started_at, ended_at, workout_media(id, media_type, storage_path, added_at, duration_ms), workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg))",
     )
     .eq("user_id", userId)
     // Repots konvention för "avslutade pass" - utesluter också det pass
@@ -412,6 +547,7 @@ export async function fetchWorkoutHistory(
       endedAt: workout.ended_at,
       summary: summarizeWorkout(workout, setRecords),
       exercises,
+      media: sortMedia(workout.workout_media ?? []).map(toMediaRow),
     };
   });
 }
@@ -436,6 +572,7 @@ export interface EditableWorkout {
   startedAt: string;
   endedAt: string;
   exercises: EditableExercise[];
+  media: WorkoutMediaRow[];
   // Nästa lediga nummer, uträknade som max+1 över det servern svarade
   // med. Samma form som räknarna i ActiveWorkoutScreen.
   nextOrderIndex: number;
@@ -467,7 +604,7 @@ export async function fetchWorkoutForEdit(
   const { data, error } = await supabase
     .from("workouts")
     .select(
-      "id, name, started_at, ended_at, workout_exercises(id, order_index, exercise_id, exercises(name), sets(id, set_nr, reps, weight_kg))",
+      "id, name, started_at, ended_at, workout_media(id, media_type, storage_path, added_at, duration_ms), workout_exercises(id, order_index, exercise_id, exercises(name), sets(id, set_nr, reps, weight_kg))",
     )
     .eq("user_id", userId)
     // Bara avslutade pass går att redigera här. Ett pågående pass ägs av
@@ -512,6 +649,7 @@ export async function fetchWorkoutForEdit(
     startedAt: data.started_at,
     endedAt: data.ended_at,
     exercises,
+    media: sortMedia(data.workout_media ?? []).map(toMediaRow),
     // -1 + 1 = 0 för ett pass utan övningar; order_index börjar på 0.
     nextOrderIndex:
       workoutExercises.reduce((max, we) => Math.max(max, we.order_index), -1) + 1,

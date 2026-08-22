@@ -18,6 +18,8 @@ import {
   View,
 } from "react-native";
 import { ExerciseSection } from "../components/ExerciseSection";
+import { MediaStrip } from "../components/MediaStrip";
+import { MediaViewer } from "../components/MediaViewer";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { useSyncStatus } from "../lib/use-sync-status";
 import {
@@ -25,16 +27,23 @@ import {
   loadActiveWorkout,
   saveActiveWorkout,
   type ActiveWorkout,
+  type PersistedMedia,
 } from "../lib/active-workout";
+import type { MediaItem } from "../lib/media-item";
+import { pickWorkoutMedia } from "../lib/media-picker";
+import { subscribeToPendingMediaIds } from "../lib/media-queue";
 import {
   addExerciseToWorkout,
+  addWorkoutMedia,
   deleteSet,
   deleteWorkout,
   endWorkout,
   fetchExerciseCatalog,
   fetchPreviousSetsForExercise,
   newSetId,
+  removeAllWorkoutMedia,
   removeExerciseFromWorkout,
+  removeWorkoutMedia,
   saveSet,
   type ExerciseOption,
   type PreviousSet,
@@ -83,7 +92,16 @@ export function ActiveWorkoutScreen({
   // vid avslut - en rad man håller på att fylla i ska inte lysa röd
   // medan man skriver.
   const [flaggedSetIds, setFlaggedSetIds] = useState<string[]>([]);
-  const { online, pendingCount } = useSyncStatus();
+  // Media ligger LOKALT under hela passet - servern läses aldrig här.
+  // Byte:sen kan ligga kvar i uppladdningskön i timmar, och ett pass som
+  // loggas offline har ingenting alls på servern att läsa.
+  const [media, setMedia] = useState<PersistedMedia[]>([]);
+  const [pendingMediaIds, setPendingMediaIds] = useState<string[]>([]);
+  // Index i mediaremsan som helskärmsvyn visar. null = stängd.
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const { online, pendingCount, pendingMediaCount } = useSyncStatus();
+
+  useEffect(() => subscribeToPendingMediaIds(setPendingMediaIds), []);
 
   // Nästa lediga set_nr per övning, och nästa lediga order_index för
   // passet. Båda är monotona och återanvänds ALDRIG, inte ens efter en
@@ -122,6 +140,7 @@ export function ActiveWorkoutScreen({
           startedAt.current = stored.startedAt;
           setNameDraft(stored.name ?? "");
           setSections(stored.sections);
+          setMedia(stored.media ?? []);
         }
         setHydrated(true);
       })
@@ -136,6 +155,7 @@ export function ActiveWorkoutScreen({
   function snapshot(
     currentSections: Section[],
     currentName: string = nameDraft,
+    currentMedia: PersistedMedia[] = media,
   ): ActiveWorkout {
     return {
       version: 1,
@@ -146,6 +166,7 @@ export function ActiveWorkoutScreen({
       nextOrderIndex: nextOrderIndex.current,
       nextSetNr: nextSetNr.current,
       sections: currentSections,
+      media: currentMedia,
     };
   }
 
@@ -163,11 +184,11 @@ export function ActiveWorkoutScreen({
   // sections: [] över den sparade blobben direkt vid mount, alltså
   // raderas passet i samma ögonblick som man försöker återuppta det.
   //
-  // `sections` och `nameDraft` är allt som behöver lyssnas på. Räknarna
-  // följer med gratis: varje mutation av nextSetNr/nextOrderIndex följs
-  // av ett setSections i samma handler (handlePickExercise,
-  // handleCreateSetRow, handleRemoveExercise), så refarna är alltid
-  // färska när effekten kör.
+  // `sections`, `nameDraft` och `media` är allt som behöver lyssnas på.
+  // Räknarna följer med gratis: varje mutation av
+  // nextSetNr/nextOrderIndex följs av ett setSections i samma handler
+  // (handlePickExercise, handleCreateSetRow, handleRemoveExercise), så
+  // refarna är alltid färska när effekten kör.
   useEffect(() => {
     if (!hydrated || finished.current) return;
     saveActiveWorkout(snapshot(sections)).catch(() => {
@@ -176,7 +197,7 @@ export function ActiveWorkoutScreen({
       // användaren ändå inte kan göra något åt. Själva passet ligger
       // redan säkert i synk-kön - det som riskeras är återupptagningen.
     });
-  }, [hydrated, sections, nameDraft, userId, workoutId]);
+  }, [hydrated, sections, nameDraft, media, userId, workoutId]);
 
   useEffect(() => {
     // Om detta misslyckas finns varken nät eller en sparad kopia av
@@ -434,6 +455,58 @@ export function ActiveWorkoutScreen({
     }
   }
 
+  // Filen kopieras till appens egen katalog av väljaren och läggs sedan
+  // i uppladdningskön. Ingenting väntar på nätet: rutan syns direkt, och
+  // byte:sen skickas i bakgrunden när det finns uppkoppling.
+  async function handleAddMedia() {
+    const imported = await pickWorkoutMedia();
+    // null = avbrutet, nekad behörighet, eller ett fel som väljaren
+    // redan visat en dialog för.
+    if (imported === null) return;
+    try {
+      const persisted = await addWorkoutMedia(userId, workoutId, imported);
+      setMedia((prev) => [...prev, persisted]);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte lägga till filen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    }
+  }
+
+  function confirmRemoveMedia(item: MediaItem) {
+    Alert.alert(
+      item.mediaType === "video" ? "Ta bort videon?" : "Ta bort bilden?",
+      "Den tas bort från passet. Det går inte att ångra.",
+      [
+        { text: "Avbryt", style: "cancel" },
+        {
+          text: "Ta bort",
+          style: "destructive",
+          onPress: () => void handleRemoveMedia(item.id),
+        },
+      ],
+    );
+  }
+
+  async function handleRemoveMedia(mediaId: string) {
+    const target = media.find((m) => m.id === mediaId);
+    if (!target) return;
+    try {
+      await removeWorkoutMedia(userId, target.id, target.storagePath);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte ta bort filen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+      return;
+    }
+    // Stängs alltid: index i visaren pekar på en lista som just blivit
+    // kortare, och det man tittade på finns inte längre.
+    setViewerIndex(null);
+    setMedia((prev) => prev.filter((m) => m.id !== mediaId));
+  }
+
   async function handleFinish() {
     // Ett tryck på "Avsluta pass" triggar inte pålitligt onBlur på ett
     // fokuserat fält, så drafts - inte `saved` - är källan här.
@@ -568,6 +641,10 @@ export function ActiveWorkoutScreen({
   async function handleDiscardWorkout() {
     try {
       await deleteWorkout(workoutId);
+      // Raderna under passet städas av `on delete cascade`, men Storage
+      // vet ingenting om det - filerna måste tas bort uttryckligen, och
+      // uppladdningar som ännu inte körts avbrytas.
+      await removeAllWorkoutMedia(userId, media);
     } catch (err) {
       Alert.alert(
         "Kunde inte avbryta passet",
@@ -592,6 +669,16 @@ export function ActiveWorkoutScreen({
       </View>
     );
   }
+
+  const mediaItems: MediaItem[] = media.map((item) => ({
+    id: item.id,
+    mediaType: item.mediaType,
+    // Alltid den lokala filen. Under ett pågående pass finns ingen
+    // signerad URL att hämta - och skulle inte behövas om den fanns.
+    uri: item.localUri,
+    durationMs: item.durationMs,
+    pending: pendingMediaIds.includes(item.id),
+  }));
 
   return (
     <KeyboardAvoidingView
@@ -649,6 +736,17 @@ export function ActiveWorkoutScreen({
           <Text style={styles.secondaryButtonText}>Lägg till övning</Text>
         </TouchableOpacity>
 
+        {/* Ligger sist, efter övningarna: media är något man lägger till
+            en gång, oftast mot slutet, medan set-raderna är det man
+            arbetar i hela passet. Överst hade den knuffat ned varje
+            övning permanent. */}
+        <MediaStrip
+          items={mediaItems}
+          onAdd={() => void handleAddMedia()}
+          onRemove={confirmRemoveMedia}
+          onOpen={setViewerIndex}
+        />
+
         <TouchableOpacity onPress={confirmDiscardWorkout}>
           <Text style={styles.discardText}>Avbryt pass</Text>
         </TouchableOpacity>
@@ -657,6 +755,7 @@ export function ActiveWorkoutScreen({
       <SyncStatusBanner
         online={online}
         pendingCount={pendingCount}
+        pendingMediaCount={pendingMediaCount}
         offlineLabel="Offline – loggas lokalt och synkas senare"
       />
 
@@ -691,6 +790,17 @@ export function ActiveWorkoutScreen({
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* Sist i trädet, så att overlayen hamnar överst. Den är med flit
+          ingen Modal - se MediaViewer. Villkoret gör också att spelaren
+          släpps när man stänger istället för att ligga kvar. */}
+      {viewerIndex !== null && viewerIndex < mediaItems.length && (
+        <MediaViewer
+          items={mediaItems}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

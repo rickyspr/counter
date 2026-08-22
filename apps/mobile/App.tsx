@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { TabBar } from "./components/TabBar";
 import { AuthProvider, useAuth } from "./lib/auth-context";
+import { subscribeToMediaErrors } from "./lib/media-queue";
+import { clearMediaUrlCache } from "./lib/media-urls";
 import { subscribeToSyncErrors } from "./lib/offline-queue";
 import { ActiveWorkoutScreen } from "./screens/ActiveWorkoutScreen";
 import { EditWorkoutScreen } from "./screens/EditWorkoutScreen";
@@ -29,12 +31,27 @@ function AppContent() {
     [],
   );
 
+  // Egen kanal, inte samma som ovan: uppladdningskön är en helt separat
+  // kö (se media-queue.ts) och dess fel handlar om en fil, inte om en
+  // ändring som inte gick fram.
+  useEffect(
+    () =>
+      subscribeToMediaErrors((message) => {
+        Alert.alert("Kunde inte ladda upp media", message);
+      }),
+    [],
+  );
+
   // Utan detta ligger `screen` kvar över en utloggning. Det syns inte
   // direkt (LoginScreen returneras före workout-grenen nedan), men
   // loggar någon annan in på samma telefon renderas pass-skärmen med
   // föregående användares workoutId.
+  //
+  // De signerade URL:erna släpps av samma skäl: de hör till den som var
+  // inloggad.
   useEffect(() => {
     setScreen({ name: "home" });
+    clearMediaUrlCache();
   }, [userId]);
 
   if (loading) {

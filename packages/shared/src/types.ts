@@ -6,5 +6,6 @@ export type Workout = Database["public"]["Tables"]["workouts"]["Row"];
 export type WorkoutExercise =
   Database["public"]["Tables"]["workout_exercises"]["Row"];
 export type WorkoutSet = Database["public"]["Tables"]["sets"]["Row"];
+export type WorkoutMedia = Database["public"]["Tables"]["workout_media"]["Row"];
 
 export type Unit = "kg" | "lbs";

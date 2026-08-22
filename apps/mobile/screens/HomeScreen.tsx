@@ -23,6 +23,7 @@ import {
   deleteWorkout,
   fetchExerciseCatalog,
   fetchLatestWorkoutSummaryInput,
+  removeAllWorkoutMedia,
   startWorkout,
 } from "../lib/queries";
 
@@ -36,7 +37,7 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
-  const { online, pendingCount } = useSyncStatus();
+  const { online, pendingCount, pendingMediaCount } = useSyncStatus();
 
   const loadLatestWorkout = useCallback(async () => {
     if (!online) {
@@ -120,6 +121,11 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
 
   async function discardWorkout(session: ActiveWorkout) {
     await deleteWorkout(session.workoutId);
+    // Passets rader städas av `on delete cascade`, men filerna i Storage
+    // gör de inte - och en uppladdning som ännu inte körts måste
+    // avbrytas, annars laddas en bild upp till ett pass som just
+    // raderats.
+    await removeAllWorkoutMedia(userId, session.media ?? []);
     await clearActiveWorkout();
   }
 
@@ -162,7 +168,11 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
     >
       <Text style={styles.title}>RepCount</Text>
 
-      <SyncStatusBanner online={online} pendingCount={pendingCount} />
+      <SyncStatusBanner
+        online={online}
+        pendingCount={pendingCount}
+        pendingMediaCount={pendingMediaCount}
+      />
 
       {activeWorkout && (
         <View style={styles.activeCard}>
