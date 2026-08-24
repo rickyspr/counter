@@ -220,7 +220,8 @@ workout's duration by its set count.
 - [x] Images and video on a workout, added while logging
       (`ActiveWorkoutScreen`) and changed afterwards
       (`EditWorkoutScreen`), viewed read-only in the workout detail
-      modal. Files live in the private `workout-media` Storage bucket;
+      modal and, since the entry below, inline in the profile's history
+      list too. Files live in the private `workout-media` Storage bucket;
       `workout_media` holds the metadata.
       The bytes go through a SECOND queue
       (`apps/mobile/lib/media-queue.ts`), never the sync queue. The sync
@@ -285,6 +286,28 @@ workout's duration by its set count.
       Order is upload → write row → delete the old object; a row write
       that fails deletes the object it just uploaded. The reverse order
       can leave a profile pointing at a file that is already gone
+- [x] A workout's media shown inline in the profile's history list
+      (`ProfileScreen.tsx`), not just after opening it. A card with media
+      gets a 4:3 cover carousel on top, cropped, kant-i-kant with the
+      card's rounded corners; a card with none is unchanged. Multiple
+      files page horizontally with dots; tapping a tile opens
+      `MediaViewer` on that item, tapping the text below still opens the
+      workout detail modal.
+      This is what makes `fetchWorkoutHistory`'s media genuinely looked
+      at in the list itself, so the comment that used to justify NOT
+      signing there ("nobody has opened it yet") no longer holds:
+      `ProfileScreen` now signs every page's paths in ONE
+      `signMediaUrls()` call right after the page loads, keyed by the
+      same `${bucket}:${path}` cache `WorkoutDetailModal` already uses -
+      opening a workout after scrolling past it costs nothing further.
+      Rows render immediately with an empty placeholder tile; a failed
+      signing round never surfaces as an error, same reasoning as the
+      detail modal - not something the user typed and not something
+      they could fix.
+      New component `WorkoutMediaCarousel.tsx`, not a reuse of
+      `MediaStrip`: that one is a picker strip with its own chrome
+      (title, counter, 96px tiles) for the editing screens - different
+      job from a full-bleed carousel in a history card.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later

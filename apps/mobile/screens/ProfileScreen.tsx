@@ -8,13 +8,17 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Avatar } from "../components/Avatar";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { WorkoutDetailModal } from "../components/WorkoutDetailModal";
+import { WorkoutMediaCarousel } from "../components/WorkoutMediaCarousel";
+import { MediaViewer } from "../components/MediaViewer";
 import { errorMessage } from "../lib/errors";
-import { signAvatarUrl } from "../lib/media-urls";
+import type { MediaItem } from "../lib/media-item";
+import { signAvatarUrl, signMediaUrls } from "../lib/media-urls";
 import {
   fallbackDisplayName,
   fetchProfile,
@@ -36,6 +40,12 @@ interface Props {
   onEditWorkout: (workoutId: string) => void;
   onOpenSettings: () => void;
 }
+
+// Delade med stylesheeten längst ner (listContent.padding, workoutCard.
+// borderWidth) - kortets bredd räknas ut ur samma tal som ritar det, så
+// att karusellens sidsnäpp aldrig hamnar snett mot ramen.
+const LIST_PADDING = 24;
+const CARD_BORDER = 1;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("sv-SE", {
@@ -79,6 +89,8 @@ export function ProfileScreen({
 }: Props) {
   const userId = session.user.id;
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = windowWidth - LIST_PADDING * 2 - CARD_BORDER * 2;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -89,6 +101,33 @@ export function ProfileScreen({
   const [loadingMore, setLoadingMore] = useState(false);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [selected, setSelected] = useState<WorkoutHistoryEntry | null>(null);
+  // Sökväg -> signerad URL, för HELA historiklistan - till skillnad från
+  // WorkoutDetailModal som bara signerar det ena passet man öppnat.
+  // Historiklistan visar numera bilderna direkt, så alla synliga pass
+  // behöver en URL, inte bara det man tittar på.
+  const [mediaUrls, setMediaUrls] = useState<Map<string, string>>(new Map());
+  const [viewer, setViewer] = useState<{ items: MediaItem[]; index: number } | null>(
+    null,
+  );
+
+  // Signerar en sidas media i ETT anrop, inte per pass. Misslyckas det
+  // visas bara tomma platshållare (se WorkoutMediaCarousel) - precis som
+  // WorkoutDetailModal är det inte data användaren matat in och inte
+  // något hen kan åtgärda.
+  async function signPage(entries: WorkoutHistoryEntry[]) {
+    const paths = entries.flatMap((w) => w.media.map((m) => m.storagePath));
+    if (paths.length === 0) return;
+    try {
+      const signed = await signMediaUrls(paths);
+      setMediaUrls((prev) => {
+        const next = new Map(prev);
+        for (const [path, url] of signed) next.set(path, url);
+        return next;
+      });
+    } catch {
+      // Se ovan - stödjande, aldrig ett fel användaren ska se.
+    }
+  }
 
   // Vakt mot att onEndReached avfyras flera gånger för samma sida medan
   // hämtningen pågår - FlatList kallar den gärna om vid varje scroll-tick.
@@ -124,6 +163,7 @@ export function ProfileScreen({
     if (firstPage.status === "fulfilled") {
       setWorkouts(firstPage.value);
       setReachedEnd(firstPage.value.length < WORKOUT_HISTORY_PAGE_SIZE);
+      void signPage(firstPage.value);
     }
 
     const failure = [profileResult, trainingStats, firstPage].find(
@@ -156,6 +196,7 @@ export function ProfileScreen({
         const seen = new Set(prev.map((w) => w.id));
         return [...prev, ...next.filter((w) => !seen.has(w.id))];
       });
+      void signPage(next);
       if (next.length < WORKOUT_HISTORY_PAGE_SIZE) setReachedEnd(true);
     } catch (err) {
       Alert.alert("Kunde inte hämta fler pass", errorMessage(err));
@@ -277,48 +318,24 @@ export function ProfileScreen({
         onEndReachedThreshold={0.4}
         refreshing={loading}
         onRefresh={loadFirstPage}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.workoutRow}
-            onPress={() => setSelected(item)}
-          >
-            <View style={styles.workoutRowTop}>
-              {/* Har passet ett namn bär det raden, med datumet under.
-                  Utan namn är datumet rubriken, precis som förut. */}
-              <Text style={styles.workoutDate} numberOfLines={1}>
-                {item.name ?? formatDate(item.startedAt)}
-              </Text>
-              <Text style={styles.workoutVolume}>
-                {item.summary.totalVolumeKg.toLocaleString("sv-SE")} kg
-              </Text>
-            </View>
-            {item.name !== null && (
-              <Text style={styles.workoutMeta}>
-                {formatDate(item.startedAt)}
-              </Text>
-            )}
-            {item.exercises.length > 0 && (
-              // Dedupas: samma övning kan förekomma i två block i ett
-              // pass, och "Bänkpress, Bänkpress · 1 övning" ser trasigt
-              // ut. summary.exerciseCount räknar redan DISTINKTA
-              // övningar, så det här matchar den siffran.
-              <Text style={styles.workoutExercises} numberOfLines={1}>
-                {[...new Set(item.exercises.map((e) => e.name))].join(", ")}
-              </Text>
-            )}
-            <Text style={styles.workoutMeta}>
-              {item.summary.setCount} set · {item.summary.exerciseCount}{" "}
-              {item.summary.exerciseCount === 1 ? "övning" : "övningar"}
-              {item.summary.durationMinutes !== null
-                ? ` · ${item.summary.durationMinutes} min`
-                : ""}
-              {/* Bara antalet. Historikfrågan hämtar mediaraderna men
-                  INTE signerade URL:er - att signera för varje pass i
-                  listan vore ett anrop för bilder ingen öppnat. */}
-              {item.media.length > 0 ? ` · 📷 ${item.media.length}` : ""}
-            </Text>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const mediaItems: MediaItem[] = item.media.map((m) => ({
+            id: m.id,
+            mediaType: m.mediaType,
+            uri: mediaUrls.get(m.storagePath) ?? null,
+            durationMs: m.durationMs,
+            pending: false,
+          }));
+          return (
+            <WorkoutRow
+              item={item}
+              mediaItems={mediaItems}
+              cardWidth={cardWidth}
+              onPress={() => setSelected(item)}
+              onOpenMedia={(index) => setViewer({ items: mediaItems, index })}
+            />
+          );
+        }}
       />
 
       <TouchableOpacity
@@ -339,6 +356,68 @@ export function ProfileScreen({
           onEditWorkout(workoutId);
         }}
       />
+
+      {/* Overlay ovanpå ALLT, inklusive "Logga ut" - samma mönster som
+          i WorkoutDetailModal, som denna komponent är byggd för att
+          kunna öppnas utanför. */}
+      {viewer && (
+        <MediaViewer
+          items={viewer.items}
+          initialIndex={viewer.index}
+          onClose={() => setViewer(null)}
+        />
+      )}
+    </View>
+  );
+}
+
+function WorkoutRow({
+  item,
+  mediaItems,
+  cardWidth,
+  onPress,
+  onOpenMedia,
+}: {
+  item: WorkoutHistoryEntry;
+  mediaItems: MediaItem[];
+  cardWidth: number;
+  onPress: () => void;
+  onOpenMedia: (index: number) => void;
+}) {
+  return (
+    <View style={styles.workoutCard}>
+      <WorkoutMediaCarousel items={mediaItems} width={cardWidth} onOpen={onOpenMedia} />
+      <TouchableOpacity style={styles.workoutRow} onPress={onPress}>
+        <View style={styles.workoutRowTop}>
+          {/* Har passet ett namn bär det raden, med datumet under.
+              Utan namn är datumet rubriken, precis som förut. */}
+          <Text style={styles.workoutDate} numberOfLines={1}>
+            {item.name ?? formatDate(item.startedAt)}
+          </Text>
+          <Text style={styles.workoutVolume}>
+            {item.summary.totalVolumeKg.toLocaleString("sv-SE")} kg
+          </Text>
+        </View>
+        {item.name !== null && (
+          <Text style={styles.workoutMeta}>{formatDate(item.startedAt)}</Text>
+        )}
+        {item.exercises.length > 0 && (
+          // Dedupas: samma övning kan förekomma i två block i ett
+          // pass, och "Bänkpress, Bänkpress · 1 övning" ser trasigt
+          // ut. summary.exerciseCount räknar redan DISTINKTA
+          // övningar, så det här matchar den siffran.
+          <Text style={styles.workoutExercises} numberOfLines={1}>
+            {[...new Set(item.exercises.map((e) => e.name))].join(", ")}
+          </Text>
+        )}
+        <Text style={styles.workoutMeta}>
+          {item.summary.setCount} set · {item.summary.exerciseCount}{" "}
+          {item.summary.exerciseCount === 1 ? "övning" : "övningar"}
+          {item.summary.durationMinutes !== null
+            ? ` · ${item.summary.durationMinutes} min`
+            : ""}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -372,7 +451,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 24,
+    padding: LIST_PADDING,
     paddingBottom: 8,
     gap: 12,
   },
@@ -466,10 +545,16 @@ const styles = StyleSheet.create({
   footerSpinner: {
     marginVertical: 16,
   },
-  workoutRow: {
-    borderWidth: 1,
+  // Ramen och radien ligger här, inte på workoutRow: karusellen ska gå
+  // kant i kant med kortets rundade hörn överst, och overflow:hidden är
+  // det som klipper dess raka bild-hörn mot dem.
+  workoutCard: {
+    borderWidth: CARD_BORDER,
     borderColor: "#e5e7eb",
     borderRadius: 12,
+    overflow: "hidden",
+  },
+  workoutRow: {
     padding: 16,
     gap: 4,
   },

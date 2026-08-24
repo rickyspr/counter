@@ -440,9 +440,11 @@ export interface WorkoutHistoryEntry {
   endedAt: string | null;
   summary: WorkoutSummary;
   exercises: HistoryExercise[];
-  // Bara metadata. De signerade URL:erna hämtas först när passet
-  // öppnas (se WorkoutDetailModal) - att signera för varje pass i
-  // listan hade varit ett anrop för media ingen tittar på.
+  // Bara metadata - inga signerade URL:er. ProfileScreen signerar en
+  // hel sida i EN gång efter hämtningen (se signMediaUrls i
+  // media-urls.ts), inte per pass: historiklistan visar numera
+  // bilderna direkt, så antagandet som stod här tidigare - att ingen
+  // tittar på dem förrän passet öppnas - gäller inte längre.
   media: WorkoutMediaRow[];
 }
 
