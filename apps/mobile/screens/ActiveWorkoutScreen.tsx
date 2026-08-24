@@ -579,6 +579,29 @@ export function ActiveWorkoutScreen({
     }
 
     setFlaggedSetIds([]);
+
+    // Har `problems` inte stoppat oss finns det, för varje section, redan
+    // minst ett satt/skrivet set - annars hade den flaggats som "inga set"
+    // eller "unparseable" ovan. Så `sections.length === 0` är precis
+    // liktydigt med "inget set någonsin loggat". Media räknas som värdefullt
+    // i sig - ett pass med bilder men utan set behåll, inte kastas.
+    if (sections.length === 0 && media.length === 0) {
+      try {
+        await deleteWorkout(workoutId);
+        await removeAllWorkoutMedia(userId, media);
+      } catch (err) {
+        Alert.alert(
+          "Kunde inte avsluta passet",
+          err instanceof Error ? err.message : "Okänt fel.",
+        );
+        return;
+      }
+      finished.current = true;
+      await clearActiveWorkout().catch(() => {});
+      onDiscard();
+      return;
+    }
+
     try {
       await Promise.all(
         writes.map((w) =>
