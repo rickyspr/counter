@@ -260,7 +260,7 @@ export function ExercisePicker({ visible, catalog, onPick, onClose, onCreate }: 
                     >
                       <Text style={styles.exerciseName}>{item.name}</Text>
                       {item.muscle_group && (
-                        <Text style={styles.exerciseMuscle}>{item.muscle_group}</Text>
+                        <Text style={styles.exerciseMuscle}>{capitalize(item.muscle_group)}</Text>
                       )}
                     </TouchableOpacity>
                   )}
