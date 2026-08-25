@@ -17,6 +17,17 @@ type QueuedAction =
       order_index: number;
     }
   | {
+      // Klientgenererat id, precis som workout_id/workout_exercise_id -
+      // en efterföljande "add_exercise" i samma session kan referera till
+      // det innan den här åtgärden nått servern, och FIFO gör att den
+      // alltid hamnar före.
+      type: "create_exercise";
+      id: string;
+      user_id: string;
+      name: string;
+      muscle_group: string | null;
+    }
+  | {
       type: "add_set";
       // Valfritt: köposter som sparades av en äldre appversion saknar id.
       id?: string;
@@ -153,6 +164,16 @@ async function applyAction(action: QueuedAction): Promise<void> {
         workout_id: action.workout_id,
         exercise_id: action.exercise_id,
         order_index: action.order_index,
+      });
+      if (error) throw error;
+      return;
+    }
+    case "create_exercise": {
+      const { error } = await supabase.from("exercises").upsert({
+        id: action.id,
+        user_id: action.user_id,
+        name: action.name,
+        muscle_group: action.muscle_group,
       });
       if (error) throw error;
       return;

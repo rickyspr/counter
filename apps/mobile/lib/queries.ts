@@ -57,6 +57,27 @@ async function loadExerciseCatalog(): Promise<ExerciseOption[]> {
   }
 }
 
+// En övning skapad offline måste överleva att appen dödas innan
+// "create_exercise" hunnit synka - annars försvinner den ur väljaren vid
+// nästa öppning fast åtgärden fortfarande ligger kvar i kön.
+async function cacheCreatedExercise(exercise: ExerciseOption): Promise<void> {
+  const cached = await readJSON<ExerciseOption[] | null>(EXERCISE_CACHE_KEY, null);
+  const withoutDuplicate = (cached ?? []).filter((e) => e.id !== exercise.id);
+  await writeJSON(EXERCISE_CACHE_KEY, [...withoutDuplicate, exercise]);
+}
+
+export async function createCustomExercise(
+  userId: string,
+  name: string,
+  muscleGroup: string | null,
+): Promise<ExerciseOption> {
+  const id = Crypto.randomUUID();
+  await enqueue({ type: "create_exercise", id, user_id: userId, name, muscle_group: muscleGroup });
+  const exercise: ExerciseOption = { id, name, muscle_group: muscleGroup };
+  await cacheCreatedExercise(exercise);
+  return exercise;
+}
+
 // Mutationsfunktionerna nedan skriver ALDRIG direkt mot Supabase.
 // De genererar ett lokalt id och lägger åtgärden i synk-kön (se
 // offline-queue.ts). enqueue() väntar bara in det LOKALA sparandet

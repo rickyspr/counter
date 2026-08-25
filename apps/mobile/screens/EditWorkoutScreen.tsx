@@ -3,9 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { DateTimeField } from "../components/DateTimeField";
+import { ExercisePicker } from "../components/ExercisePicker";
 import { ExerciseSection } from "../components/ExerciseSection";
 import { MediaStrip } from "../components/MediaStrip";
 import { MediaViewer } from "../components/MediaViewer";
@@ -31,6 +30,7 @@ import { drainQueue } from "../lib/offline-queue";
 import {
   addExerciseToWorkout,
   addWorkoutMedia,
+  createCustomExercise,
   deleteSet,
   deleteWorkout,
   fetchExerciseCatalog,
@@ -802,33 +802,17 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
         <Text style={styles.doneButtonText}>Klar</Text>
       </TouchableOpacity>
 
-      <Modal
+      <ExercisePicker
         visible={pickerOpen}
-        animationType="slide"
-        onRequestClose={() => setPickerOpen(false)}
-      >
-        <View style={styles.container}>
-          <Text style={styles.title}>Välj övning</Text>
-          <FlatList
-            data={catalog}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.exerciseRow}
-                onPress={() => void handlePickExercise(item)}
-              >
-                <Text style={styles.exerciseName}>{item.name}</Text>
-                {item.muscle_group && (
-                  <Text style={styles.exerciseMuscle}>{item.muscle_group}</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          />
-          <TouchableOpacity onPress={() => setPickerOpen(false)}>
-            <Text style={styles.secondaryButtonText}>Avbryt</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+        catalog={catalog}
+        onPick={(exercise) => void handlePickExercise(exercise)}
+        onClose={() => setPickerOpen(false)}
+        onCreate={async (name, muscleGroup) => {
+          const exercise = await createCustomExercise(userId, name, muscleGroup);
+          setCatalog((prev) => [...prev, exercise]);
+          return exercise;
+        }}
+      />
 
       {viewerIndex !== null && viewerIndex < mediaItems.length && (
         <MediaViewer
@@ -918,16 +902,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  exerciseRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  exerciseName: {
-    fontSize: 16,
-  },
-  exerciseMuscle: {
-    color: "#6b7280",
   },
 });

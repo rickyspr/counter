@@ -308,6 +308,38 @@ workout's duration by its set count.
       `MediaStrip`: that one is a picker strip with its own chrome
       (title, counter, 96px tiles) for the editing screens - different
       job from a full-bleed carousel in a history card.
+- [x] The global exercise catalog now actually ships to a real project, and
+      users can add their own exercises. The catalog was checked off at the
+      top of this list from day one, but `supabase/seed.sql` only runs on
+      `supabase db reset` (local dev) - `supabase db push`, the only command
+      this repo's workflow uses against a real Supabase project, never
+      touches it. The 26 rows moved into a real migration,
+      `20260825090000_seed_global_exercises.sql` (a plain insert is safe -
+      a migration runs exactly once); `seed.sql` now just points at it, so
+      a local `db reset` doesn't insert the list twice.
+      Custom exercises reuse plumbing that already existed: RLS already let
+      a user insert their own row (`exercises_insert_own`), it was only the
+      UI that was missing. Creation goes through the offline sync queue via
+      a new `create_exercise` action - a client-generated id upserted into
+      `exercises`, same pattern as `add_exercise`, so a workout logged fully
+      offline can reference an exercise created in the same session (FIFO
+      guarantees the create lands first). The exercise catalog cache
+      (`EXERCISE_CACHE_KEY` in `queries.ts`) gets the new row appended too,
+      not just the screen's in-memory state - otherwise a custom exercise
+      created offline vanishes from the picker if the app is killed before
+      `create_exercise` reaches the server.
+      New shared component `apps/mobile/components/ExercisePicker.tsx`,
+      replacing an identical Modal+FlatList that used to be duplicated in
+      both `ActiveWorkoutScreen` and `EditWorkoutScreen` - both screens now
+      needed the same search box and "add new" form, so keeping them
+      duplicated meant writing it twice. Muscle group is picked from chips
+      matching the 6 groups the seed data already uses
+      (`apps/mobile/lib/muscle-groups.ts`), plus "annat" for free text -
+      `muscle_group` has no enum in the database, so this is only a UI
+      nudge to stop the same group fragmenting into casing/spelling
+      variants. A name that already exists in the loaded catalog
+      (case-insensitive) is blocked with a message pointing at the existing
+      row rather than silently creating a duplicate.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later

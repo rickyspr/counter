@@ -6,9 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { ExercisePicker } from "../components/ExercisePicker";
 import { ExerciseSection } from "../components/ExerciseSection";
 import { MediaStrip } from "../components/MediaStrip";
 import { MediaViewer } from "../components/MediaViewer";
@@ -35,6 +34,7 @@ import { subscribeToPendingMediaIds } from "../lib/media-queue";
 import {
   addExerciseToWorkout,
   addWorkoutMedia,
+  createCustomExercise,
   deleteSet,
   deleteWorkout,
   endWorkout,
@@ -786,33 +786,17 @@ export function ActiveWorkoutScreen({
         <Text style={styles.buttonText}>Avsluta pass</Text>
       </TouchableOpacity>
 
-      <Modal
+      <ExercisePicker
         visible={pickerOpen}
-        animationType="slide"
-        onRequestClose={() => setPickerOpen(false)}
-      >
-        <View style={styles.container}>
-          <Text style={styles.title}>Välj övning</Text>
-          <FlatList
-            data={catalog}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.exerciseRow}
-                onPress={() => handlePickExercise(item)}
-              >
-                <Text style={styles.exerciseName}>{item.name}</Text>
-                {item.muscle_group && (
-                  <Text style={styles.exerciseMuscle}>{item.muscle_group}</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          />
-          <TouchableOpacity onPress={() => setPickerOpen(false)}>
-            <Text style={styles.secondaryButtonText}>Avbryt</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+        catalog={catalog}
+        onPick={(exercise) => void handlePickExercise(exercise)}
+        onClose={() => setPickerOpen(false)}
+        onCreate={async (name, muscleGroup) => {
+          const exercise = await createCustomExercise(userId, name, muscleGroup);
+          setCatalog((prev) => [...prev, exercise]);
+          return exercise;
+        }}
+      />
 
       {/* Sist i trädet, så att overlayen hamnar överst. Den är med flit
           ingen Modal - se MediaViewer. Villkoret gör också att spelaren
@@ -882,16 +866,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  exerciseRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  exerciseName: {
-    fontSize: 16,
-  },
-  exerciseMuscle: {
-    color: "#6b7280",
   },
 });
