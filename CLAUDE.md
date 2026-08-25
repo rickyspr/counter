@@ -340,6 +340,21 @@ workout's duration by its set count.
       variants. A name that already exists in the loaded catalog
       (case-insensitive) is blocked with a message pointing at the existing
       row rather than silently creating a duplicate.
+      `ExercisePicker` now opens on a muscle-group chip screen (the 6 seeded
+      groups, plus "Alla" for the old flat list and "Övrigt" catching
+      anything - null or free-text from "annat" - that doesn't match one of
+      the 6) instead of the flat list directly, so browsing scales as the
+      catalog grows. The search box stays visible through every state and
+      always searches the full catalog regardless of the active group -
+      typing is the escape hatch for "I know the name but not the group".
+      Deliberately has NO memory of the last-picked group across openings:
+      the existing reset-on-close effect (already used for the search text
+      and the create form) resets it too, so the picker always starts at
+      the group screen. Creating a new exercise from inside a group
+      pre-selects that group in the form - `formGroup` (the value about to
+      be written) and `browseGroup` (which list is on screen) are
+      deliberately separate state, since a search performed while inside a
+      group must not change what the create form would save.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later
