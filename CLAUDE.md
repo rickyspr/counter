@@ -355,6 +355,27 @@ workout's duration by its set count.
       be written) and `browseGroup` (which list is on screen) are
       deliberately separate state, since a search performed while inside a
       group must not change what the create form would save.
+      The seeded catalog itself is now also available on a device that has
+      NEVER had a successful fetch (a fresh install with no connection
+      yet) - `fetchExerciseCatalog()`'s existing live-fetch → AsyncStorage
+      cache fallback gets a third tier, `DEFAULT_EXERCISE_CATALOG`
+      (`apps/mobile/lib/default-exercise-catalog.ts`), a static copy of the
+      26 seeded rows kept in sync by hand with the seed migration. Its
+      entries get synthetic ids and `fallback: true`, since they don't
+      correspond to real `exercises` rows - the migration's ids are
+      `gen_random_uuid()`, unknowable ahead of time. Picking one routes
+      through `ExercisePicker`'s existing `onCreate` prop first (same
+      mechanism as "Lägg till egen övning"), so it becomes the user's own
+      real, syncable row before it's ever referenced by a
+      `workout_exercises.exercise_id`. If the device later gets a real
+      connection, that exercise may briefly show twice (the true global
+      row plus the user's own copy, same name) - accepted tradeoff to
+      avoid pinning fixed ids onto already-pushed production data.
+      `fetchExerciseCatalog()`'s session-level promise memoization also
+      had to learn not to remember a fallback result as "done" - otherwise
+      reconnecting mid-session would keep serving the bundled list until
+      the app was force-quit, since nothing else would ever trigger a
+      retry.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later

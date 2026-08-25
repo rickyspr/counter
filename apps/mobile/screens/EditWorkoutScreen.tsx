@@ -809,7 +809,11 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
         onClose={() => setPickerOpen(false)}
         onCreate={async (name, muscleGroup) => {
           const exercise = await createCustomExercise(userId, name, muscleGroup);
-          setCatalog((prev) => [...prev, exercise]);
+          // filter, inte append: samma anrop materialiserar en post ur
+          // DEFAULT_EXERCISE_CATALOG (samma namn, fallback: true) till en
+          // riktig rad - annars stod placeholdern och dubbletten kvar
+          // bredvid varandra i samma lista.
+          setCatalog((prev) => [...prev.filter((e) => e.name !== exercise.name), exercise]);
           return exercise;
         }}
       />

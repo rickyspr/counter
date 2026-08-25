@@ -7,6 +7,7 @@ import {
 } from "@repcount/shared";
 import * as Crypto from "expo-crypto";
 import type { PersistedMedia } from "./active-workout";
+import { DEFAULT_EXERCISE_CATALOG } from "./default-exercise-catalog";
 import { cancelUpload, enqueueRemove, enqueueUpload } from "./media-queue";
 import type { ImportedMedia } from "./media-store";
 import { enqueue } from "./offline-queue";
@@ -17,6 +18,10 @@ export interface ExerciseOption {
   id: string;
   name: string;
   muscle_group: string | null;
+  // Sant bara för rader ur DEFAULT_EXERCISE_CATALOG som aldrig nått
+  // servern - ExercisePicker måste skapa en riktig rad (via onCreate)
+  // innan en sådan post faktiskt används i ett pass.
+  fallback?: boolean;
 }
 
 const EXERCISE_CACHE_KEY = "repcount:exercise-cache";
@@ -32,10 +37,19 @@ let catalogPromise: Promise<ExerciseOption[]> | null = null;
 
 export function fetchExerciseCatalog(): Promise<ExerciseOption[]> {
   if (!catalogPromise) {
-    catalogPromise = loadExerciseCatalog().catch((err) => {
-      catalogPromise = null;
-      throw err;
-    });
+    catalogPromise = loadExerciseCatalog()
+      .then((result) => {
+        // Standardkatalogen är en tillfällig utväg, inte en riktig
+        // hämtning - minns den inte som "klar" för resten av sessionen,
+        // annars ger t.ex. att öppna väljaren igen efter att nätet kommit
+        // tillbaka fortfarande samma paketerade lista.
+        if (result.some((e) => e.fallback)) catalogPromise = null;
+        return result;
+      })
+      .catch((err) => {
+        catalogPromise = null;
+        throw err;
+      });
   }
   return catalogPromise;
 }
@@ -50,10 +64,18 @@ async function loadExerciseCatalog(): Promise<ExerciseOption[]> {
     if (error) throw error;
     await writeJSON(EXERCISE_CACHE_KEY, data);
     return data;
-  } catch (err) {
+  } catch {
     const cached = await readJSON<ExerciseOption[] | null>(EXERCISE_CACHE_KEY, null);
     if (cached) return cached;
-    throw err;
+    // Katalogen har aldrig hämtats eller cachats på den här enheten (t.ex.
+    // en helt ny installation utan nät) - sista utväg är den paketerade
+    // standardlistan istället för att kasta och lämna väljaren tom.
+    return DEFAULT_EXERCISE_CATALOG.map((exercise, index) => ({
+      id: `default:${index}`,
+      name: exercise.name,
+      muscle_group: exercise.muscle_group,
+      fallback: true,
+    }));
   }
 }
 

@@ -83,6 +83,26 @@ export function ExercisePicker({ visible, catalog, onPick, onClose, onCreate }: 
     setCreating(true);
   }
 
+  // En post ur DEFAULT_EXERCISE_CATALOG (se queries.ts) är aldrig en riktig
+  // rad - katalogen kunde varken hämtas eller cachas på den här enheten.
+  // Den måste bli en riktig, egen övning (samma väg som "Lägg till egen
+  // övning") innan den kan refereras av ett workout_exercises.exercise_id.
+  async function handlePick(exercise: ExerciseOption) {
+    if (!exercise.fallback) {
+      onPick(exercise);
+      return;
+    }
+    try {
+      const created = await onCreate(exercise.name, exercise.muscle_group);
+      onPick(created);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte lägga till övningen",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    }
+  }
+
   async function handleSubmit() {
     const name = nameDraft.trim();
     if (!name) {
@@ -234,7 +254,10 @@ export function ExercisePicker({ visible, catalog, onPick, onClose, onCreate }: 
                   data={list}
                   keyExtractor={(item) => item.id}
                   renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.exerciseRow} onPress={() => onPick(item)}>
+                    <TouchableOpacity
+                      style={styles.exerciseRow}
+                      onPress={() => void handlePick(item)}
+                    >
                       <Text style={styles.exerciseName}>{item.name}</Text>
                       {item.muscle_group && (
                         <Text style={styles.exerciseMuscle}>{item.muscle_group}</Text>
