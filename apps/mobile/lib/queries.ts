@@ -559,42 +559,78 @@ export async function fetchWorkoutHistory(
   const { data, error } = await query;
   if (error) throw error;
 
-  return (data ?? []).map((workout) => {
-    const workoutExercises = [...(workout.workout_exercises ?? [])].sort(
-      (a, b) => a.order_index - b.order_index,
-    );
+  return (data ?? []).map(mapWorkoutHistoryRow);
+}
 
-    const exercises: HistoryExercise[] = workoutExercises.map((we) => ({
-      workoutExerciseId: we.id,
-      name: we.exercises?.name ?? "Okänd övning",
-      sets: [...(we.sets ?? [])]
-        .sort((a, b) => a.set_nr - b.set_nr)
-        .map((s) => ({ reps: s.reps, weightKg: s.weight_kg })),
-    }));
+// Formen på en workouts-rad hämtad med den inbäddade selecten ovan -
+// samma fält fetchFeed (feed.ts) hämtar för vänners pass, vilket är
+// vad som gör den här mappningen återanvändbar dit.
+export interface RawWorkoutRow {
+  id: string;
+  name: string | null;
+  started_at: string;
+  ended_at: string | null;
+  workout_media?:
+    | {
+        id: string;
+        media_type: string;
+        storage_path: string;
+        added_at: string;
+        duration_ms: number | null;
+      }[]
+    | null;
+  workout_exercises?:
+    | {
+        id: string;
+        order_index: number;
+        exercise_id: string;
+        exercises: { name: string } | null;
+        sets: { set_nr: number; reps: number; weight_kg: number }[] | null;
+      }[]
+    | null;
+}
 
-    // summarizeWorkout läser bara reps, weight_kg och exercise_id ur
-    // varje SetRecord - resten krävs av typen men ignoreras, så de fylls
-    // i från passet.
-    const setRecords: SetRecord[] = workoutExercises.flatMap((we) =>
-      (we.sets ?? []).map((s) => ({
-        reps: s.reps,
-        weight_kg: s.weight_kg,
-        exercise_id: we.exercise_id,
-        workout_id: workout.id,
-        workout_started_at: workout.started_at,
-      })),
-    );
+// Utbruten ur fetchWorkoutHistory så att feed.ts kan återanvända samma
+// mappning för vänners pass istället för att duplicera den - se
+// RawWorkoutRow ovan.
+export function mapWorkoutHistoryRow(workout: RawWorkoutRow): Omit<
+  WorkoutHistoryEntry,
+  never
+> {
+  const workoutExercises = [...(workout.workout_exercises ?? [])].sort(
+    (a, b) => a.order_index - b.order_index,
+  );
 
-    return {
-      id: workout.id,
-      name: workout.name,
-      startedAt: workout.started_at,
-      endedAt: workout.ended_at,
-      summary: summarizeWorkout(workout, setRecords),
-      exercises,
-      media: sortMedia(workout.workout_media ?? []).map(toMediaRow),
-    };
-  });
+  const exercises: HistoryExercise[] = workoutExercises.map((we) => ({
+    workoutExerciseId: we.id,
+    name: we.exercises?.name ?? "Okänd övning",
+    sets: [...(we.sets ?? [])]
+      .sort((a, b) => a.set_nr - b.set_nr)
+      .map((s) => ({ reps: s.reps, weightKg: s.weight_kg })),
+  }));
+
+  // summarizeWorkout läser bara reps, weight_kg och exercise_id ur
+  // varje SetRecord - resten krävs av typen men ignoreras, så de fylls
+  // i från passet.
+  const setRecords: SetRecord[] = workoutExercises.flatMap((we) =>
+    (we.sets ?? []).map((s) => ({
+      reps: s.reps,
+      weight_kg: s.weight_kg,
+      exercise_id: we.exercise_id,
+      workout_id: workout.id,
+      workout_started_at: workout.started_at,
+    })),
+  );
+
+  return {
+    id: workout.id,
+    name: workout.name,
+    startedAt: workout.started_at,
+    endedAt: workout.ended_at,
+    summary: summarizeWorkout(workout, setRecords),
+    exercises,
+    media: sortMedia(workout.workout_media ?? []).map(toMediaRow),
+  };
 }
 
 export interface EditableSet {

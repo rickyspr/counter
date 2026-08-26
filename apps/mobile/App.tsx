@@ -12,9 +12,11 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileSettingsScreen } from "./screens/ProfileSettingsScreen";
+import { SocialScreen } from "./screens/SocialScreen";
 
 type Screen =
   | { name: "home" }
+  | { name: "social" }
   | { name: "profile" }
   | { name: "profile-settings" }
   | { name: "workout"; workoutId: string }
@@ -118,6 +120,8 @@ function AppContent() {
           }
           onOpenSettings={() => setScreen({ name: "profile-settings" })}
         />
+      ) : screen.name === "social" ? (
+        <SocialScreen userId={session.user.id} />
       ) : (
         <HomeScreen
           userId={session.user.id}
@@ -128,9 +132,22 @@ function AppContent() {
       )}
       <TabBar
         active={screen.name}
-        onSelect={(tab) =>
-          setScreen(tab === "home" ? { name: "home" } : { name: "profile" })
-        }
+        onSelect={(tab) => {
+          // Ingen { name: tab } rakt av: Screen är en diskriminerad
+          // union, och TabName breddar bort den kopplingen mellan tab
+          // och literal-typen TypeScript vill se.
+          switch (tab) {
+            case "home":
+              setScreen({ name: "home" });
+              break;
+            case "social":
+              setScreen({ name: "social" });
+              break;
+            case "profile":
+              setScreen({ name: "profile" });
+              break;
+          }
+        }}
       />
     </View>
   );

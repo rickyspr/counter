@@ -7,16 +7,33 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import type { WorkoutSummary } from "@repcount/shared";
 import type { MediaItem } from "../lib/media-item";
 import { signMediaUrls } from "../lib/media-urls";
-import type { WorkoutHistoryEntry } from "../lib/queries";
+import type { HistoryExercise, WorkoutMediaRow } from "../lib/queries";
 import { MediaStrip } from "./MediaStrip";
 import { MediaViewer } from "./MediaViewer";
 
+// Gemensam form för WorkoutHistoryEntry (egna pass, ProfileScreen) och
+// FeedWorkoutEntry (vänners pass, SocialScreen) - modalen renderar bara
+// ur dessa fält, så den bryr sig inte om vilken av de två den fick.
+export interface WorkoutDetail {
+  id: string;
+  name: string | null;
+  startedAt: string;
+  summary: WorkoutSummary;
+  exercises: HistoryExercise[];
+  media: WorkoutMediaRow[];
+}
+
 interface Props {
-  workout: WorkoutHistoryEntry | null;
+  workout: WorkoutDetail | null;
   onClose: () => void;
-  onEdit: (workoutId: string) => void;
+  // Saknas för ett väns pass - SocialScreen skickar ingen, vilket gömmer
+  // ägare-affordancen (redigera-knappen) nedan.
+  onEdit?: (workoutId: string) => void;
+  // Saknas för egen historik i v1 - bara SocialScreen skickar den.
+  kudos?: { count: number; givenByMe: boolean; onToggle: () => void };
 }
 
 function formatDateTime(iso: string): string {
@@ -37,7 +54,7 @@ function formatDateTime(iso: string): string {
 // En Modal istället för en egen gren i App.tsx routern: vyn nås bara
 // härifrån, och modalen ger stäng-beteendet gratis utan att den
 // handrullade routern behöver en back-stack.
-export function WorkoutDetailModal({ workout, onClose, onEdit }: Props) {
+export function WorkoutDetailModal({ workout, onClose, onEdit, kudos }: Props) {
   // Sökväg -> signerad URL. Bucketen är privat, så inget går att visa
   // förrän de hämtats.
   const [urls, setUrls] = useState<Map<string, string>>(new Map());
@@ -101,12 +118,33 @@ export function WorkoutDetailModal({ workout, onClose, onEdit }: Props) {
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.date}>{formatDateTime(workout.startedAt)}</Text>
 
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => onEdit(workout.id)}
-            >
-              <Text style={styles.editButtonText}>Redigera pass</Text>
-            </TouchableOpacity>
+            {onEdit && (
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => onEdit(workout.id)}
+              >
+                <Text style={styles.editButtonText}>Redigera pass</Text>
+              </TouchableOpacity>
+            )}
+
+            {kudos && (
+              <TouchableOpacity
+                style={styles.kudosButton}
+                onPress={kudos.onToggle}
+                accessibilityRole="button"
+                accessibilityState={{ selected: kudos.givenByMe }}
+              >
+                <Text
+                  style={[
+                    styles.kudosButtonText,
+                    kudos.givenByMe && styles.kudosButtonTextActive,
+                  ]}
+                >
+                  {kudos.givenByMe ? "★ Peppad" : "☆ Peppa"}
+                  {kudos.count > 0 ? ` (${kudos.count})` : ""}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.summaryRow}>
               <Summary
@@ -213,6 +251,20 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: "#111827",
     fontWeight: "600",
+  },
+  kudosButton: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  kudosButtonText: {
+    color: "#374151",
+    fontWeight: "600",
+  },
+  kudosButtonTextActive: {
+    color: "#b45309",
   },
   closeText: {
     color: "#111827",

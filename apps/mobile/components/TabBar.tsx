@@ -6,7 +6,7 @@ import {
   View,
 } from "react-native";
 
-export type TabName = "home" | "profile";
+export type TabName = "home" | "social" | "profile";
 
 interface Props {
   active: TabName;
@@ -15,6 +15,7 @@ interface Props {
 
 const TABS: { name: TabName; label: string }[] = [
   { name: "home", label: "Hem" },
+  { name: "social", label: "Socialt" },
   { name: "profile", label: "Profil" },
 ];
 
