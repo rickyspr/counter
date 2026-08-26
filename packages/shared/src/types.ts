@@ -7,5 +7,7 @@ export type WorkoutExercise =
   Database["public"]["Tables"]["workout_exercises"]["Row"];
 export type WorkoutSet = Database["public"]["Tables"]["sets"]["Row"];
 export type WorkoutMedia = Database["public"]["Tables"]["workout_media"]["Row"];
+export type Follow = Database["public"]["Tables"]["follows"]["Row"];
+export type WorkoutKudos = Database["public"]["Tables"]["workout_kudos"]["Row"];
 
 export type Unit = "kg" | "lbs";

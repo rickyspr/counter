@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.17"
+  }
   public: {
     Tables: {
       exercises: {
@@ -30,6 +35,39 @@ export type Database = {
           muscle_group?: string | null
           name?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      follows: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: string
+          pair_high: string | null
+          pair_low: string | null
+          requester_id: string
+          responded_at: string | null
+          status: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: string
+          pair_high?: string | null
+          pair_low?: string | null
+          requester_id: string
+          responded_at?: string | null
+          status?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: string
+          pair_high?: string | null
+          pair_low?: string | null
+          requester_id?: string
+          responded_at?: string | null
+          status?: string
         }
         Relationships: []
       }
@@ -146,6 +184,35 @@ export type Database = {
           },
         ]
       }
+      workout_kudos: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          workout_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          workout_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_kudos_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workout_media: {
         Row: {
           added_at: string
@@ -225,12 +292,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      are_mutual_friends: { Args: { a: string; b: string }; Returns: boolean }
+      can_view_workout: { Args: { p_workout_id: string }; Returns: boolean }
       get_training_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
-          workout_count: number
-          total_volume_kg: number
           total_minutes: number
+          total_volume_kg: number
+          workout_count: number
+        }[]
+      }
+      list_friends: {
+        Args: never
+        Returns: {
+          avatar_path: string
+          bio: string
+          display_name: string
+          friends_since: string
+          home_gym: string
+          id: string
+        }[]
+      }
+      list_pending_requests: {
+        Args: never
+        Returns: {
+          created_at: string
+          direction: string
+          display_name: string
+          follow_id: string
+          other_id: string
+        }[]
+      }
+      search_profiles: {
+        Args: { query: string }
+        Returns: {
+          display_name: string
+          id: string
+          relationship: string
         }[]
       }
     }
@@ -365,4 +463,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
