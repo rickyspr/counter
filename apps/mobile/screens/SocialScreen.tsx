@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -383,6 +384,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: LIST_PADDING,
+    // Utan safe-area-bibliotek (se TabBar) hamnar annars "Vänner"-knappen
+    // under statusfältet/dynamiska ön och går inte att träffa - samma
+    // fasta-marginal-lösning som TabBars paddingBottom, fast högst upp.
+    paddingTop: Platform.OS === "ios" ? 60 : LIST_PADDING,
     paddingBottom: 8,
     gap: 12,
   },
