@@ -1,10 +1,5 @@
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type TabName = "home" | "social" | "profile";
 
@@ -23,8 +18,9 @@ const TABS: { name: TabName; label: string }[] = [
 // navigationsbibliotek. Inga ikoner heller: det finns inget ikonpaket
 // installerat, och stilen i övriga skärmar är ren text.
 export function TabBar({ active, onSelect }: Props) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: insets.bottom + 14 }]}>
       {TABS.map((tab) => {
         const isActive = tab.name === active;
         return (
@@ -56,10 +52,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     paddingTop: 14,
-    // Flikraden ligger längst ner i fönstret och skulle annars hamna
-    // delvis under home-indikatorn på nyare iPhones. Appen har inget
-    // safe-area-bibliotek installerat, så det blir en fast marginal.
-    paddingBottom: Platform.OS === "ios" ? 28 : 14,
   },
   label: {
     fontSize: 15,

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { WorkoutSummary } from "@repcount/shared";
 import type { MediaItem } from "../lib/media-item";
 import { signMediaUrls } from "../lib/media-urls";
@@ -55,6 +56,7 @@ function formatDateTime(iso: string): string {
 // härifrån, och modalen ger stäng-beteendet gratis utan att den
 // handrullade routern behöver en back-stack.
 export function WorkoutDetailModal({ workout, onClose, onEdit, kudos }: Props) {
+  const insets = useSafeAreaInsets();
   // Sökväg -> signerad URL. Bucketen är privat, så inget går att visa
   // förrän de hämtats.
   const [urls, setUrls] = useState<Map<string, string>>(new Map());
@@ -103,7 +105,7 @@ export function WorkoutDetailModal({ workout, onClose, onEdit, kudos }: Props) {
       onRequestClose={onClose}
     >
       {workout && (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
           <View style={styles.header}>
             {/* Namnet är valfritt - utan det heter passet "Pass" och
                 datumet under bär identiteten, precis som förut. */}

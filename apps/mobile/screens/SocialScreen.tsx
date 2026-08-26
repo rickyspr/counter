@@ -3,13 +3,13 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "../components/Avatar";
 import { FriendsModal } from "../components/FriendsModal";
 import { MediaViewer } from "../components/MediaViewer";
@@ -54,6 +54,7 @@ function formatDate(iso: string): string {
 // historik inte har.
 export function SocialScreen({ userId }: Props) {
   const { online } = useSyncStatus();
+  const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = windowWidth - LIST_PADDING * 2 - CARD_BORDER * 2;
 
@@ -229,7 +230,7 @@ export function SocialScreen({ userId }: Props) {
         data={feed}
         keyExtractor={(item) => item.id}
         style={styles.list}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingTop: insets.top + LIST_PADDING }]}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         onEndReached={() => void loadNextPage()}
@@ -384,10 +385,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: LIST_PADDING,
-    // Utan safe-area-bibliotek (se TabBar) hamnar annars "Vänner"-knappen
-    // under statusfältet/dynamiska ön och går inte att träffa - samma
-    // fasta-marginal-lösning som TabBars paddingBottom, fast högst upp.
-    paddingTop: Platform.OS === "ios" ? 60 : LIST_PADDING,
+    // paddingTop overridden inline with insets.top + LIST_PADDING - see render.
     paddingBottom: 8,
     gap: 12,
   },

@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MediaItem } from "../lib/media-item";
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 // hinner släppas när man stänger istället för att ligga kvar och hålla
 // en video i minnet.
 export function MediaViewer({ items, initialIndex, onClose }: Props) {
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [index, setIndex] = useState(initialIndex);
   const scroll = useRef<ScrollView>(null);
@@ -95,13 +97,13 @@ export function MediaViewer({ items, initialIndex, onClose }: Props) {
       </ScrollView>
 
       {items.length > 1 && (
-        <Text style={styles.counter}>
+        <Text style={[styles.counter, { top: insets.top + 20 }]}>
           {index + 1} / {items.length}
         </Text>
       )}
 
       <TouchableOpacity
-        style={styles.closeButton}
+        style={[styles.closeButton, { top: insets.top + 12 }]}
         onPress={onClose}
         accessibilityLabel="Stäng"
       >
@@ -133,16 +135,16 @@ const styles = StyleSheet.create({
     fontSize: 48,
   },
   counter: {
+    // top overridden inline with insets.top - see render.
     position: "absolute",
-    top: 60,
     left: 24,
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",
   },
   closeButton: {
+    // top overridden inline with insets.top - see render.
     position: "absolute",
-    top: 52,
     right: 16,
     paddingHorizontal: 14,
     paddingVertical: 8,

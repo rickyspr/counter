@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DateTimeField } from "../components/DateTimeField";
 import { ExercisePicker } from "../components/ExercisePicker";
 import { ExerciseSection } from "../components/ExerciseSection";
@@ -98,6 +99,7 @@ interface EditMedia extends WorkoutMediaRow {
 
 export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -670,7 +672,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
 
   if (loadError !== null) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
         <Text style={styles.errorText}>{loadError}</Text>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => void load()}>
           <Text style={styles.secondaryButtonText}>Försök igen</Text>
@@ -700,7 +702,10 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[
+        styles.container,
+        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+      ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView

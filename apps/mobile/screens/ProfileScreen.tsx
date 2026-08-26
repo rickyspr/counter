@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "../components/Avatar";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { WorkoutDetailModal } from "../components/WorkoutDetailModal";
@@ -89,6 +90,7 @@ export function ProfileScreen({
 }: Props) {
   const userId = session.user.id;
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
+  const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = windowWidth - LIST_PADDING * 2 - CARD_BORDER * 2;
 
@@ -311,7 +313,7 @@ export function ProfileScreen({
         data={workouts}
         keyExtractor={(item) => item.id}
         style={styles.list}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingTop: insets.top + LIST_PADDING }]}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         onEndReached={() => void loadNextPage()}

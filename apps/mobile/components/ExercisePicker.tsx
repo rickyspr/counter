@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MUSCLE_GROUPS } from "../lib/muscle-groups";
 import type { ExerciseOption } from "../lib/queries";
 
@@ -40,6 +41,7 @@ function capitalize(value: string): string {
 // handlePickExercise och catalog-state - komponenten bara rapporterar
 // tillbaka via onPick/onCreate.
 export function ExercisePicker({ visible, catalog, onPick, onClose, onCreate }: Props) {
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   // null = visa gruppvalet, "alla" = hela listan oskiftrerad, annars en av
   // MUSCLE_GROUPS eller "övrigt".
@@ -136,7 +138,10 @@ export function ExercisePicker({ visible, catalog, onPick, onClose, onCreate }: 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[
+          styles.container,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+        ]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {creating ? (

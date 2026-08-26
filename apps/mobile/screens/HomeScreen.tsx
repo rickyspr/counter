@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { useSyncStatus } from "../lib/use-sync-status";
 import {
@@ -38,6 +39,7 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
+  const insets = useSafeAreaInsets();
 
   const loadLatestWorkout = useCallback(async () => {
     if (!online) {
@@ -155,7 +157,7 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + 24 }]}
       refreshControl={
         <RefreshControl
           refreshing={loading}

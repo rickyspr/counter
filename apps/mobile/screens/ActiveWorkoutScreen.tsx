@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExercisePicker } from "../components/ExercisePicker";
 import { ExerciseSection } from "../components/ExerciseSection";
 import { MediaStrip } from "../components/MediaStrip";
@@ -100,6 +101,7 @@ export function ActiveWorkoutScreen({
   // Index i mediaremsan som helskärmsvyn visar. null = stängd.
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => subscribeToPendingMediaIds(setPendingMediaIds), []);
 
@@ -705,7 +707,10 @@ export function ActiveWorkoutScreen({
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[
+        styles.container,
+        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+      ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView

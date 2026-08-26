@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { errorMessage } from "../lib/errors";
 import {
   acceptFriendRequest,
@@ -40,6 +41,7 @@ type Tab = "search" | "requests" | "friends";
 // helskärms-underskärm som måste överleva oberoende av förälderns
 // mount-status (vilket är vad Screen-grenarna i App.tsx är till för).
 export function FriendsModal({ visible, userId, onClose }: Props) {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("requests");
 
   const [query, setQuery] = useState("");
@@ -149,7 +151,7 @@ export function FriendsModal({ visible, userId, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Vänner</Text>
           <TouchableOpacity onPress={onClose}>
