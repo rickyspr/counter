@@ -7,8 +7,10 @@ import { AuthProvider, useAuth } from "./lib/auth-context";
 import { subscribeToMediaErrors } from "./lib/media-queue";
 import { clearMediaUrlCache } from "./lib/media-urls";
 import { subscribeToSyncErrors } from "./lib/offline-queue";
+import type { Friend } from "./lib/follows";
 import { ActiveWorkoutScreen } from "./screens/ActiveWorkoutScreen";
 import { EditWorkoutScreen } from "./screens/EditWorkoutScreen";
+import { FriendProfileScreen } from "./screens/FriendProfileScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
@@ -21,7 +23,8 @@ type Screen =
   | { name: "profile" }
   | { name: "profile-settings" }
   | { name: "workout"; workoutId: string }
-  | { name: "edit-workout"; workoutId: string };
+  | { name: "edit-workout"; workoutId: string }
+  | { name: "friend-profile"; friend: Friend };
 
 function AppContent() {
   const { session, loading } = useAuth();
@@ -111,6 +114,19 @@ function AppContent() {
     );
   }
 
+  // Same shape as edit-workout/profile-settings, for the same reason: a
+  // friend's profile is reached from Socialt but isn't itself one of the
+  // three tabs, so it needs its own branch to hide the tab bar.
+  if (screen.name === "friend-profile") {
+    return (
+      <FriendProfileScreen
+        friend={screen.friend}
+        currentUserId={session.user.id}
+        onClose={() => setScreen({ name: "social" })}
+      />
+    );
+  }
+
   return (
     <View style={styles.flex}>
       {screen.name === "profile" ? (
@@ -122,7 +138,10 @@ function AppContent() {
           onOpenSettings={() => setScreen({ name: "profile-settings" })}
         />
       ) : screen.name === "social" ? (
-        <SocialScreen userId={session.user.id} />
+        <SocialScreen
+          userId={session.user.id}
+          onOpenFriend={(friend) => setScreen({ name: "friend-profile", friend })}
+        />
       ) : (
         <HomeScreen
           userId={session.user.id}

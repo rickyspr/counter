@@ -29,6 +29,7 @@ interface Props {
   visible: boolean;
   userId: string;
   onClose: () => void;
+  onOpenFriend: (friend: Friend) => void;
 }
 
 type Tab = "search" | "requests" | "friends";
@@ -40,7 +41,7 @@ type Tab = "search" | "requests" | "friends";
 // ProfileScreen. Vänhantering är en delvy av EN flik, inte en
 // helskärms-underskärm som måste överleva oberoende av förälderns
 // mount-status (vilket är vad Screen-grenarna i App.tsx är till för).
-export function FriendsModal({ visible, userId, onClose }: Props) {
+export function FriendsModal({ visible, userId, onClose, onOpenFriend }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("requests");
 
@@ -267,9 +268,17 @@ export function FriendsModal({ visible, userId, onClose }: Props) {
             ) : (
               friends.map((friend) => (
                 <View key={friend.id} style={styles.row}>
-                  <Text style={styles.rowName} numberOfLines={1}>
-                    {friend.displayName ?? "Namnlös"}
-                  </Text>
+                  <TouchableOpacity
+                    style={styles.rowTextGroup}
+                    onPress={() => {
+                      onClose();
+                      onOpenFriend(friend);
+                    }}
+                  >
+                    <Text style={styles.rowName} numberOfLines={1}>
+                      {friend.displayName ?? "Namnlös"}
+                    </Text>
+                  </TouchableOpacity>
                   {actingOnId === friend.id ? (
                     <ActivityIndicator />
                   ) : (

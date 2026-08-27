@@ -132,3 +132,22 @@ export async function fetchTrainingStats(): Promise<TrainingStats> {
     totalMinutes: Number(data?.total_minutes ?? 0),
   };
 }
+
+// Separate RPC, not get_training_stats(friendId) - see
+// 20260827100000_friend_training_stats.sql. get_training_stats() has no
+// parameter at all and always means "the caller", so a friend's numbers
+// need their own function rather than an argument bolted onto that one.
+export async function fetchFriendTrainingStats(
+  friendId: string,
+): Promise<TrainingStats> {
+  const { data, error } = await supabase
+    .rpc("get_friend_training_stats", { p_user_id: friendId })
+    .maybeSingle();
+  if (error) throw error;
+
+  return {
+    workoutCount: Number(data?.workout_count ?? 0),
+    totalVolumeKg: Number(data?.total_volume_kg ?? 0),
+    totalMinutes: Number(data?.total_minutes ?? 0),
+  };
+}

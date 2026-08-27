@@ -12,6 +12,7 @@ import type { WorkoutSummary } from "@repcount/shared";
 import type { MediaItem } from "../lib/media-item";
 import { signMediaUrls } from "../lib/media-urls";
 import type { HistoryExercise, WorkoutMediaRow } from "../lib/queries";
+import { Avatar } from "./Avatar";
 import { MediaStrip } from "./MediaStrip";
 import { MediaViewer } from "./MediaViewer";
 
@@ -35,6 +36,10 @@ interface Props {
   onEdit?: (workoutId: string) => void;
   // Saknas för egen historik i v1 - bara SocialScreen skickar den.
   kudos?: { count: number; givenByMe: boolean; onToggle: () => void };
+  // Saknas för egen historik (ProfileScreen) och när man redan står på
+  // författarens profil (FriendProfileScreen) - bara SocialScreen skickar
+  // den, där passet kan komma från vem som helst i flödet.
+  author?: { name: string; avatarUrl: string | null; onPress: () => void };
 }
 
 function formatDateTime(iso: string): string {
@@ -55,7 +60,7 @@ function formatDateTime(iso: string): string {
 // En Modal istället för en egen gren i App.tsx routern: vyn nås bara
 // härifrån, och modalen ger stäng-beteendet gratis utan att den
 // handrullade routern behöver en back-stack.
-export function WorkoutDetailModal({ workout, onClose, onEdit, kudos }: Props) {
+export function WorkoutDetailModal({ workout, onClose, onEdit, kudos, author }: Props) {
   const insets = useSafeAreaInsets();
   // Sökväg -> signerad URL. Bucketen är privat, så inget går att visa
   // förrän de hämtats.
@@ -118,6 +123,15 @@ export function WorkoutDetailModal({ workout, onClose, onEdit, kudos }: Props) {
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll}>
+            {author && (
+              <TouchableOpacity style={styles.authorRow} onPress={author.onPress}>
+                <Avatar uri={author.avatarUrl} name={author.name} size={32} />
+                <Text style={styles.authorName} numberOfLines={1}>
+                  {author.name}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <Text style={styles.date}>{formatDateTime(workout.startedAt)}</Text>
 
             {onEdit && (
@@ -272,6 +286,15 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
     fontSize: 16,
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  authorName: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   scroll: {
     gap: 16,
