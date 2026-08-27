@@ -26,3 +26,6 @@ supabase/.temp/
 # OS/editor
 .DS_Store
 *.log
+
+# Local planning notes
+planing/
