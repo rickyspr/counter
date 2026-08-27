@@ -294,6 +294,14 @@ export type Database = {
     Functions: {
       are_mutual_friends: { Args: { a: string; b: string }; Returns: boolean }
       can_view_workout: { Args: { p_workout_id: string }; Returns: boolean }
+      get_friend_training_stats: {
+        Args: { p_user_id: string }
+        Returns: {
+          total_minutes: number
+          total_volume_kg: number
+          workout_count: number
+        }[]
+      }
       get_training_stats: {
         Args: never
         Returns: {
