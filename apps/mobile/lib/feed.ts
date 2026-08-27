@@ -85,11 +85,12 @@ export async function fetchFeed(
     const friend = friendById.get(row.user_id);
     const kudos: { user_id: string }[] = row.workout_kudos ?? [];
     return {
+      // kudosCount kommer redan från mapWorkoutHistoryRow - samma
+      // row.workout_kudos som kudosGivenByMe läser här.
       ...mapWorkoutHistoryRow(row),
       userId: row.user_id,
       authorDisplayName: friend?.displayName ?? null,
       authorAvatarPath: friend?.avatarPath ?? null,
-      kudosCount: kudos.length,
       kudosGivenByMe: kudos.some((k) => k.user_id === currentUserId),
     };
   });

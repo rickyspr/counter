@@ -357,6 +357,7 @@ export function ProfileScreen({
           setSelected(null);
           onEditWorkout(workoutId);
         }}
+        kudosCount={selected?.kudosCount}
       />
 
       {/* Overlay ovanpå ALLT, inklusive "Logga ut" - samma mönster som
@@ -419,6 +420,11 @@ function WorkoutRow({
             ? ` · ${item.summary.durationMinutes} min`
             : ""}
         </Text>
+        {/* Bara när man faktiskt fått någon - annars visar varenda pass
+            (särskilt alla från innan Socialt fanns) samma tomma rad. */}
+        {item.kudosCount > 0 && (
+          <Text style={styles.workoutMeta}>★ {item.kudosCount} peppa</Text>
+        )}
       </TouchableOpacity>
     </View>
   );

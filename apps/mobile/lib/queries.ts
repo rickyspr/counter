@@ -410,8 +410,9 @@ export async function fetchPreviousSetsForExercise(
 }
 
 interface LatestWorkoutSummaryInput {
-  workout: { started_at: string; ended_at: string | null };
+  workout: { id: string; started_at: string; ended_at: string | null };
   sets: SetRecord[];
+  kudosCount: number;
 }
 
 // Hämtar det senast avslutade passet för en användare, samt alla dess set
@@ -423,7 +424,7 @@ export async function fetchLatestWorkoutSummaryInput(
 ): Promise<LatestWorkoutSummaryInput | null> {
   const { data: workout, error: workoutError } = await supabase
     .from("workouts")
-    .select("id, started_at, ended_at")
+    .select("id, started_at, ended_at, workout_kudos(user_id)")
     .eq("user_id", userId)
     .not("ended_at", "is", null)
     .order("started_at", { ascending: false })
@@ -432,6 +433,8 @@ export async function fetchLatestWorkoutSummaryInput(
   if (workoutError) throw workoutError;
   if (!workout) return null;
 
+  const kudosCount = (workout.workout_kudos ?? []).length;
+
   const { data: workoutExercises, error: weError } = await supabase
     .from("workout_exercises")
     .select("id, exercise_id")
@@ -439,7 +442,7 @@ export async function fetchLatestWorkoutSummaryInput(
   if (weError) throw weError;
 
   if (!workoutExercises || workoutExercises.length === 0) {
-    return { workout, sets: [] };
+    return { workout, sets: [], kudosCount };
   }
 
   const exerciseByWorkoutExerciseId = new Map(
@@ -463,7 +466,7 @@ export async function fetchLatestWorkoutSummaryInput(
     workout_started_at: workout.started_at,
   }));
 
-  return { workout, sets };
+  return { workout, sets, kudosCount };
 }
 
 export const WORKOUT_HISTORY_PAGE_SIZE = 20;
@@ -489,6 +492,10 @@ export interface WorkoutHistoryEntry {
   // bilderna direkt, så antagandet som stod här tidigare - att ingen
   // tittar på dem förrän passet öppnas - gäller inte längre.
   media: WorkoutMediaRow[];
+  // Antal peppa mottagna, oavsett vem som gett dem. Read-only här -
+  // det finns ingen affordance för att peppa sitt eget pass, bara för
+  // att SE hur många man fått.
+  kudosCount: number;
 }
 
 // Brytpunkten för nästa sida: sista raden på den föregående. Se
@@ -534,7 +541,7 @@ export async function fetchWorkoutHistory(
   let query = supabase
     .from("workouts")
     .select(
-      "id, name, started_at, ended_at, workout_media(id, media_type, storage_path, added_at, duration_ms), workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg))",
+      "id, name, started_at, ended_at, workout_media(id, media_type, storage_path, added_at, duration_ms), workout_exercises(id, order_index, exercise_id, exercises(name), sets(set_nr, reps, weight_kg)), workout_kudos(user_id)",
     )
     .eq("user_id", userId)
     // Repots konvention för "avslutade pass" - utesluter också det pass
@@ -588,6 +595,7 @@ export interface RawWorkoutRow {
         sets: { set_nr: number; reps: number; weight_kg: number }[] | null;
       }[]
     | null;
+  workout_kudos?: { user_id: string }[] | null;
 }
 
 // Utbruten ur fetchWorkoutHistory så att feed.ts kan återanvända samma
@@ -630,6 +638,7 @@ export function mapWorkoutHistoryRow(workout: RawWorkoutRow): Omit<
     summary: summarizeWorkout(workout, setRecords),
     exercises,
     media: sortMedia(workout.workout_media ?? []).map(toMediaRow),
+    kudosCount: (workout.workout_kudos ?? []).length,
   };
 }
 

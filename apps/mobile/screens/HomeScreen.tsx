@@ -37,6 +37,7 @@ interface Props {
 export function HomeScreen({ userId, onOpenWorkout }: Props) {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
+  const [kudosCount, setKudosCount] = useState<number | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
@@ -50,6 +51,7 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
     try {
       const result = await fetchLatestWorkoutSummaryInput(userId);
       setSummary(result ? summarizeWorkout(result.workout, result.sets) : null);
+      setKudosCount(result ? result.kudosCount : null);
     } catch (err) {
       Alert.alert(
         "Kunde inte hämta senaste pass",
@@ -220,6 +222,7 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
                   : "-"
               }
             />
+            <Stat label="Peppa" value={String(kudosCount ?? 0)} />
           </View>
         ) : (
           <Text style={styles.emptyText}>Inga avslutade pass ännu.</Text>

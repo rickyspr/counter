@@ -40,6 +40,13 @@ interface Props {
   // författarens profil (FriendProfileScreen) - bara SocialScreen skickar
   // den, där passet kan komma från vem som helst i flödet.
   author?: { name: string; avatarUrl: string | null; onPress: () => void };
+  // Read-only variant av kudos ovan - för ProfileScreens EGEN historik,
+  // där det inte finns någon peppa-knapp att visa (man kan inte peppa
+  // sitt eget pass), bara antalet man fått. Egen prop istället för att
+  // återanvända kudos med en valfri onToggle: den senare renderar en
+  // TouchableOpacity med knapp-semantik (accessibilityRole/State) som
+  // inte stämmer för en ren visning.
+  kudosCount?: number;
 }
 
 function formatDateTime(iso: string): string {
@@ -60,7 +67,14 @@ function formatDateTime(iso: string): string {
 // En Modal istället för en egen gren i App.tsx routern: vyn nås bara
 // härifrån, och modalen ger stäng-beteendet gratis utan att den
 // handrullade routern behöver en back-stack.
-export function WorkoutDetailModal({ workout, onClose, onEdit, kudos, author }: Props) {
+export function WorkoutDetailModal({
+  workout,
+  onClose,
+  onEdit,
+  kudos,
+  author,
+  kudosCount,
+}: Props) {
   const insets = useSafeAreaInsets();
   // Sökväg -> signerad URL. Bucketen är privat, så inget går att visa
   // förrän de hämtats.
@@ -160,6 +174,12 @@ export function WorkoutDetailModal({ workout, onClose, onEdit, kudos, author }: 
                   {kudos.count > 0 ? ` (${kudos.count})` : ""}
                 </Text>
               </TouchableOpacity>
+            )}
+
+            {kudosCount !== undefined && (
+              <View style={styles.kudosButton}>
+                <Text style={styles.kudosButtonText}>★ {kudosCount} peppa</Text>
+              </View>
             )}
 
             <View style={styles.summaryRow}>
