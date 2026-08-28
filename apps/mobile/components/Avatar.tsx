@@ -1,3 +1,4 @@
+import { initialsFor } from "@repcount/shared";
 import { Image, StyleSheet, Text, View } from "react-native";
 
 interface Props {
@@ -9,18 +10,6 @@ interface Props {
   // derive the initials.
   name: string;
   size: number;
-}
-
-// At most two letters, from the first and last word. An email address
-// has no words to speak of, so everything before the @ counts as one -
-// "rickard.hjerpe@..." gives "R" rather than "R@".
-function initialsFor(name: string): string {
-  const cleaned = name.split("@")[0]!.replace(/[._-]+/g, " ").trim();
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  const first = words[0]![0]!;
-  const last = words.length > 1 ? words[words.length - 1]![0]! : "";
-  return (first + last).toUpperCase();
 }
 
 export function Avatar({ uri, name, size }: Props) {

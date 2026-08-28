@@ -1,155 +1,143 @@
 import {
-  personalBestForExercise,
-  progressionForExercise,
-  volumePerWeek,
-  workoutFrequencyPerWeek,
-  type SetRecord,
+  fetchExercisePersonalBests,
+  fetchExerciseProgression,
+  fetchTrainingStats,
+  fetchWeeklyTrainingSeries,
+  type ExercisePersonalBest,
+  type ExerciseProgressionPoint,
+  type TrainingStats,
+  type WeeklyTrainingPoint,
 } from "@repcount/shared";
 import { useEffect, useState } from "react";
 import { ProgressionChart } from "../components/ProgressionChart";
-import { useAuth } from "../lib/auth-context";
-import { fetchAllSetsForUser, fetchExerciseNames } from "../lib/queries";
+import { WeeklyVolumeChart } from "../components/WeeklyVolumeChart";
+import { formatDuration, formatTotalVolume } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
-interface PersonalBestRow {
-  exerciseId: string;
-  exerciseName: string;
-  heaviestSetKg: number;
-  bestE1rmKg: number;
-}
-
 export function OverviewPage() {
-  const { session } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sets, setSets] = useState<SetRecord[]>([]);
-  const [exerciseNames, setExerciseNames] = useState<Map<string, string>>(
-    new Map(),
-  );
+  const [stats, setStats] = useState<TrainingStats | null>(null);
+  const [weekly, setWeekly] = useState<WeeklyTrainingPoint[]>([]);
+  const [bests, setBests] = useState<ExercisePersonalBest[]>([]);
+
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     null,
   );
+  const [progression, setProgression] = useState<ExerciseProgressionPoint[]>([]);
+  const [progressionLoading, setProgressionLoading] = useState(false);
 
   useEffect(() => {
-    if (!session) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchAllSetsForUser(session.user.id)
-      .then(async (fetchedSets) => {
-        setSets(fetchedSets);
-        const exerciseIds = Array.from(
-          new Set(fetchedSets.map((s) => s.exercise_id)),
-        );
-        const names = await fetchExerciseNames(exerciseIds);
-        setExerciseNames(new Map(names.map((n) => [n.id, n.name])));
+    Promise.all([
+      fetchTrainingStats(supabase),
+      fetchWeeklyTrainingSeries(supabase),
+      fetchExercisePersonalBests(supabase),
+    ])
+      .then(([statsResult, weeklyResult, bestsResult]) => {
+        if (cancelled) return;
+        setStats(statsResult);
+        setWeekly(weeklyResult);
+        setBests(bestsResult);
+        setSelectedExerciseId(bestsResult[0]?.exerciseId ?? null);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Okänt fel."))
-      .finally(() => setLoading(false));
-  }, [session]);
+      .catch((err) =>
+        !cancelled &&
+        setError(err instanceof Error ? err.message : "Kunde inte hämta statistik."),
+      )
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedExerciseId) {
+      setProgression([]);
+      return;
+    }
+    let cancelled = false;
+    setProgressionLoading(true);
+    fetchExerciseProgression(supabase, selectedExerciseId)
+      .then((points) => !cancelled && setProgression(points))
+      .catch(() => !cancelled && setProgression([]))
+      .finally(() => !cancelled && setProgressionLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedExerciseId]);
 
   if (loading) return <p className="status">Laddar…</p>;
   if (error) return <p className="status error">{error}</p>;
 
-  const weeklyVolume = volumePerWeek(sets);
-
-  const workoutStartedAtTimestamps = Array.from(
-    new Map(sets.map((s) => [s.workout_id, s.workout_started_at])).values(),
-  );
-  const weeklyFrequency = workoutFrequencyPerWeek(workoutStartedAtTimestamps);
-
-  const exerciseIds = Array.from(new Set(sets.map((s) => s.exercise_id)));
-  const personalBests: PersonalBestRow[] = exerciseIds
-    .map((exerciseId) => {
-      const pb = personalBestForExercise(sets, exerciseId);
-      if (!pb) return null;
-      return {
-        exerciseId,
-        exerciseName: exerciseNames.get(exerciseId) ?? exerciseId,
-        ...pb,
-      };
-    })
-    .filter((row): row is PersonalBestRow => row !== null)
-    .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
-
-  const effectiveSelectedExerciseId =
-    selectedExerciseId ?? personalBests[0]?.exerciseId ?? null;
-  const progression = effectiveSelectedExerciseId
-    ? progressionForExercise(sets, effectiveSelectedExerciseId)
-    : [];
+  const selectedBest = bests.find((b) => b.exerciseId === selectedExerciseId);
+  const hasData = (stats?.workoutCount ?? 0) > 0;
 
   return (
-    <div className="overview-page">
-      <header className="overview-header">
-        <h1>RepCount</h1>
-        <button type="button" className="link-button" onClick={() => supabase.auth.signOut()}>
-          Logga ut
-        </button>
-      </header>
+    <div className="page">
+      <h1>Översikt</h1>
 
-      {sets.length === 0 ? (
+      {!hasData ? (
         <p className="status">
           Inga avslutade pass ännu. Logga ett pass i mobilappen för att se
           statistik här.
         </p>
       ) : (
         <>
-          <section>
-            <h2>Volym per vecka</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Vecka</th>
-                  <th>Volym (kg)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weeklyVolume.map((row) => (
-                  <tr key={row.weekStart}>
-                    <td>{row.weekStart}</td>
-                    <td>{row.volumeKg}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <section className="card">
+            <h2>Din träning</h2>
+            <div className="stat-grid">
+              <Stat label="Pass" value={String(stats!.workoutCount)} />
+              <Stat
+                label="Total volym"
+                value={formatTotalVolume(stats!.totalVolumeKg)}
+              />
+              <Stat
+                label="Total tid"
+                value={formatDuration(stats!.totalMinutes)}
+              />
+            </div>
           </section>
 
           <section>
-            <h2>Passfrekvens</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Vecka</th>
-                  <th>Antal pass</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weeklyFrequency.map((row) => (
-                  <tr key={row.weekStart}>
-                    <td>{row.weekStart}</td>
-                    <td>{row.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h2>Volym per vecka</h2>
+            <WeeklyVolumeChart points={weekly} metric="volume" />
+          </section>
+
+          <section>
+            <h2>Passfrekvens per vecka</h2>
+            <WeeklyVolumeChart points={weekly} metric="count" />
           </section>
 
           <section>
             <div className="section-header">
               <h2>Progression per övning</h2>
-              {personalBests.length > 0 && (
+              {bests.length > 0 && (
                 <select
-                  value={effectiveSelectedExerciseId ?? ""}
+                  value={selectedExerciseId ?? ""}
                   onChange={(e) => setSelectedExerciseId(e.target.value)}
                 >
-                  {personalBests.map((row) => (
-                    <option key={row.exerciseId} value={row.exerciseId}>
-                      {row.exerciseName}
+                  {bests.map((b) => (
+                    <option key={b.exerciseId} value={b.exerciseId}>
+                      {b.exerciseName}
                     </option>
                   ))}
                 </select>
               )}
             </div>
-            <ProgressionChart points={progression} />
+            {selectedBest && (
+              <p className="text-muted">
+                Tyngsta set {selectedBest.heaviestSetKg.toLocaleString("sv-SE")} kg
+                {" · "}bästa e1RM {selectedBest.bestE1rmKg.toFixed(1)} kg
+              </p>
+            )}
+            {progressionLoading ? (
+              <p className="status">Laddar…</p>
+            ) : (
+              <ProgressionChart points={progression} />
+            )}
           </section>
 
           <section>
@@ -163,11 +151,11 @@ export function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {personalBests.map((row) => (
-                  <tr key={row.exerciseId}>
-                    <td>{row.exerciseName}</td>
-                    <td>{row.heaviestSetKg}</td>
-                    <td>{row.bestE1rmKg.toFixed(1)}</td>
+                {bests.map((b) => (
+                  <tr key={b.exerciseId}>
+                    <td>{b.exerciseName}</td>
+                    <td>{b.heaviestSetKg.toLocaleString("sv-SE")}</td>
+                    <td>{b.bestE1rmKg.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -175,6 +163,15 @@ export function OverviewPage() {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="stat">
+      <span className="stat-value">{value}</span>
+      <span className="stat-label">{label}</span>
     </div>
   );
 }

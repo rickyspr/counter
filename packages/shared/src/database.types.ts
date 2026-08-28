@@ -294,6 +294,32 @@ export type Database = {
     Functions: {
       are_mutual_friends: { Args: { a: string; b: string }; Returns: boolean }
       can_view_workout: { Args: { p_workout_id: string }; Returns: boolean }
+      get_exercise_personal_bests: {
+        Args: never
+        Returns: {
+          best_e1rm_kg: number
+          exercise_id: string
+          exercise_name: string
+          heaviest_set_kg: number
+          workout_count: number
+        }[]
+      }
+      get_exercise_progression: {
+        Args: { p_exercise_id: string }
+        Returns: {
+          best_e1rm_kg: number
+          top_weight_kg: number
+          workout_started_at: string
+        }[]
+      }
+      get_weekly_training_series: {
+        Args: never
+        Returns: {
+          volume_kg: number
+          week_start: string
+          workout_count: number
+        }[]
+      }
       get_friend_training_stats: {
         Args: { p_user_id: string }
         Returns: {

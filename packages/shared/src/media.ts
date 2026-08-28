@@ -85,6 +85,35 @@ function normalize(
   return MIME_TYPES[base];
 }
 
+// Vad UI:t faktiskt renderar. En och samma form oavsett var media kommer
+// ifrån - en lokal `file://`-kopia under ett pågående pass (mobilen),
+// eller en signerad URL från Storage (historik, flöde, webben) - så att
+// varje bild-/videokomponent bara behöver kunna en sak.
+export interface MediaItem {
+  id: string;
+  mediaType: MediaType;
+  // Källan att visa: en `file://`-URI till den lokala kopian, eller en
+  // signerad URL från Storage.
+  //
+  // null betyder "vet inte än" - ett synkat objekt vars signerade URL
+  // ännu inte hämtats. Rutan visas då tom istället för att saknas, så att
+  // antalet media inte hoppar medan signeringen pågår.
+  uri: string | null;
+  durationMs: number | null;
+  // Ligger kvar i mobilens uppladdningskö. Webben sätter aldrig detta.
+  pending: boolean;
+}
+
+// "0:07", "1:23". Sekunder rundas UPPÅT: en video på 6,4 sekunder som
+// visas som "0:06" ser ut att ha tappat slutet.
+export function formatMediaDuration(durationMs: number | null): string | null {
+  if (durationMs === null || durationMs <= 0) return null;
+  const totalSeconds = Math.ceil(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 // Sökvägen i bucketen. user_id ligger FÖRST för att Storage-policyerna
 // ska kunna avgöra ägarskap ur namnet utan en tabellslagning - se
 // 20260822090100_workout_media_storage.sql. Det är ett krav, inte en

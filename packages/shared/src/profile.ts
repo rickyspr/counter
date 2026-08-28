@@ -73,6 +73,19 @@ export const MAX_HEIGHT_CM = 260;
 
 export const EARLIEST_BIRTH_DATE = "1900-01-01";
 
+// Initials for the avatar fallback: at most two letters, from the first
+// and last word. An email address has no words to speak of, so
+// everything before the @ counts as one - "rickard.hjerpe@..." gives "R"
+// rather than "R@". Shared so mobile and web derive the same letters.
+export function initialsFor(name: string): string {
+  const cleaned = name.split("@")[0]!.replace(/[._-]+/g, " ").trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const first = words[0]![0]!;
+  const last = words.length > 1 ? words[words.length - 1]![0]! : "";
+  return (first + last).toUpperCase();
+}
+
 // A Postgres `date` is a calendar day with no timezone, and that is the
 // whole difficulty here. `new Date("1990-05-17")` parses as UTC
 // midnight, which is the 16th in any timezone west of Greenwich - so

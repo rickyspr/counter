@@ -3,7 +3,8 @@
 ## What the project does
 An app for logging gym workouts (exercise + sets + reps + weight) and
 viewing stats for the latest session as well as progress over time.
-Mobile app for logging, web app for stats (Strava-style). Account +
+Mobile app for logging; web app (read-only, Strava-style) for stats,
+your workout history, and the social feed. Account +
 sync so data follows you across devices.
 
 ## Architecture
@@ -11,11 +12,16 @@ Monorepo (pnpm workspaces, TypeScript everywhere):
 
 - `apps/mobile/` – Expo (React Native). Primary surface: log a
   workout, view the latest workout.
-- `apps/web/` – React (Vite). Primary surface: login + stats over time
-  (charts, PBs, volume).
-- `packages/shared/` – shared code: data types, Supabase client,
-  stats calculations. Both mobile and web import from here – no
-  duplicated business logic.
+- `apps/web/` – React (Vite, `react-router-dom`). Read-only: stats over
+  time (charts, PBs, volume), your workout history, the social feed +
+  friend management, a read-only profile. No logging or editing.
+- `packages/shared/` – shared code: data types, Supabase client, stats
+  calculations, and the data-access layer in `src/data/` (workout
+  history, feed, follows, profile, media URL signing, overview
+  aggregates) – every fetcher takes the Supabase client as its first
+  argument. Both mobile and web import from here – no duplicated business
+  logic. The mobile `lib/*.ts` counterparts are thin client-binding
+  adapters.
 - `supabase/` – database migrations and config (Supabase CLI).
 
 Backend: Supabase (Postgres + Auth + auto-generated API). No custom
@@ -71,6 +77,18 @@ over 1000 rows. It is `security invoker` with an explicit
 out everyone's numbers. Per-workout volume is a correlated subquery,
 not a join: joining sets alongside the workout would multiply each
 workout's duration by its set count.
+
+The web overview needs the same treatment for its own aggregates, so
+`20260828120000_web_overview_rpcs.sql` adds three more `security
+invoker` RPCs on the same pattern: `get_weekly_training_series()`
+(volume + workout count per ISO week, correlated-subquery volume),
+`get_exercise_personal_bests()` (one row per exercise), and
+`get_exercise_progression(p_exercise_id)` (one row per workout). The
+last two compute e1RM inline as Epley — keep that expression in sync
+with `calculateE1rm` in `packages/shared/src/stats/e1rm.ts`. The
+`volumePerWeek` / `workoutFrequencyPerWeek` / `progressionForExercise`
+/ `personalBestForExercise` functions in `packages/shared` are now
+unused by app code (the RPCs replaced them) but kept with their tests.
 
 ## Conventions & rules
 - TypeScript strict mode in all packages; shared types live in
@@ -376,6 +394,34 @@ workout's duration by its set count.
       reconnecting mid-session would keep serving the bundled list until
       the app was force-quit, since nothing else would ever trigger a
       retry.
+- [x] The web app caught up to the mobile feature set: browse your own
+      logged workouts (`apps/web/src/pages/HistoryPage.tsx`, keyset-
+      paginated, media carousels + a detail modal that renders from the
+      already-fetched row), the whole social side (feed with kudos,
+      friend search/requests/removal, read-only friend profiles), a
+      read-only own profile, and the progression chart kept as-is.
+      Everything on the web is a READ surface - logging and editing stay
+      mobile-only.
+      The data layer moved out of `apps/mobile/lib/` into
+      `packages/shared/src/data/` (`workout-history`, `feed`, `follows`,
+      `profile`, `media-urls`, `overview`), every function taking the
+      Supabase client as its first argument. The mobile `lib/*.ts` files
+      that used to hold it are now thin adapters that bind the local
+      `supabase` and re-export the shared types - no screen or component
+      under `apps/mobile/` changed its imports, and `queries.ts` keeps
+      all mutations and the offline-queue integration untouched. This is
+      what "no duplicated business logic" forced: the web needed the same
+      feed/history/follows code.
+      Web routing is `react-router-dom` (Översikt / Mina pass / Socialt /
+      Profil); the old single `OverviewPage` became four pages plus a
+      friend-profile route.
+      Overview aggregates (weekly volume/frequency, PB per exercise,
+      per-exercise progression) come from three new `security invoker`
+      RPCs in `20260828120000_web_overview_rpcs.sql`, mirroring
+      `get_training_stats` - the old web `fetchAllSetsForUser` downloaded
+      every set, which the Data API silently truncates at 1000 rows. e1RM
+      is duplicated into SQL as Epley there; keep it in sync with
+      `stats/e1rm.ts`.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later
@@ -384,12 +430,16 @@ workout's duration by its set count.
 - Login for the MVP: is email/password enough, or Apple/Google
   right away?
 - Units: kg as default with lbs as a setting – OK?
-- Should the web app also be able to log workouts, or is it
-  stats-only?
-- Should the web app show workout media? Nothing reads `workout_media`
-  there today.
-- Should the web app show the profile at all? It has never read
-  `profiles`, so the avatar and the new details are mobile-only.
+- Should the web app also be able to log workouts / edit them? Still no -
+  the web is read-only, logging and editing are mobile-only. Open only in
+  the sense that it could change later.
+- Web app media: RESOLVED - the web shows workout images and video
+  (signed URLs from the private buckets, same TTL cache as mobile via
+  `packages/shared/src/data/media-urls.ts`).
+- Web app profile: RESOLVED - the web shows a READ-ONLY profile + friend
+  profiles. Editing display name / avatar / details stays in the app, so
+  a brand-new web-only account still needs the app once to become
+  findable in friend search.
 - The kg/lbs setting still has no UI. `profiles.unit` exists but nothing
   reads it, and a toggle that changes nothing would be worse than none -
   it needs every weight in both apps to honour it first.
