@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { colors, radii } from "../lib/theme";
 
 interface Props {
   label: string;
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   label: {
-    color: "#374151",
+    color: colors.inkSecondary,
     fontSize: 16,
   },
   androidFields: {
@@ -123,10 +124,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },

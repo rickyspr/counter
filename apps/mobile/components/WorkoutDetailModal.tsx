@@ -12,6 +12,7 @@ import type { WorkoutSummary } from "@repcount/shared";
 import type { MediaItem } from "../lib/media-item";
 import { signMediaUrls } from "../lib/media-urls";
 import type { HistoryExercise, WorkoutMediaRow } from "../lib/queries";
+import { colors, radii, shadows } from "../lib/theme";
 import { Avatar } from "./Avatar";
 import { MediaStrip } from "./MediaStrip";
 import { MediaViewer } from "./MediaViewer";
@@ -263,7 +264,7 @@ function Summary({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     padding: 24,
     gap: 16,
   },
@@ -274,36 +275,42 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    color: colors.ink,
     flexShrink: 1,
   },
   editButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#111827",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     alignItems: "center",
+    ...shadows.card,
   },
   editButtonText: {
-    color: "#111827",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   kudosButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     alignItems: "center",
+    ...shadows.card,
   },
   kudosButtonText: {
-    color: "#374151",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   kudosButtonTextActive: {
-    color: "#b45309",
+    color: colors.kudos,
   },
   closeText: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontWeight: "600",
     fontSize: 16,
   },
@@ -315,6 +322,7 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 15,
     fontWeight: "600",
+    color: colors.ink,
   },
   scroll: {
     gap: 16,
@@ -322,35 +330,40 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 16,
-    color: "#374151",
+    color: colors.inkSecondary,
   },
   summaryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 16,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
+    ...shadows.card,
   },
   summary: {
     minWidth: "40%",
   },
   summaryValue: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.2,
+    color: colors.ink,
   },
   summaryLabel: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   section: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 6,
+    ...shadows.card,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
     marginBottom: 2,
   },
   setRow: {
@@ -360,12 +373,13 @@ const styles = StyleSheet.create({
   },
   setLabel: {
     width: 60,
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   setValue: {
     fontSize: 16,
+    color: colors.inkSecondary,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
 });

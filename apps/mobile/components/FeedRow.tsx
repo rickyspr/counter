@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { FeedWorkoutEntry } from "../lib/feed";
 import type { MediaItem } from "../lib/media-item";
+import { colors, radii, shadows } from "../lib/theme";
 import { Avatar } from "./Avatar";
 import { WorkoutMediaCarousel } from "./WorkoutMediaCarousel";
 
@@ -103,10 +104,12 @@ export function FeedRow({
 
 const styles = StyleSheet.create({
   workoutCard: {
+    backgroundColor: colors.surface,
     borderWidth: CARD_BORDER,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     overflow: "hidden",
+    ...shadows.card,
   },
   authorRow: {
     flexDirection: "row",
@@ -118,6 +121,7 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 14,
     fontWeight: "600",
+    color: colors.ink,
     flexShrink: 1,
   },
   workoutRow: {
@@ -133,17 +137,19 @@ const styles = StyleSheet.create({
   },
   workoutDate: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
   },
   workoutVolume: {
     fontSize: 16,
     fontWeight: "700",
+    color: colors.ink,
   },
   workoutExercises: {
-    color: "#374151",
+    color: colors.inkSecondary,
   },
   workoutMeta: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   kudosRow: {
@@ -151,10 +157,10 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   kudosText: {
-    color: "#374151",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   kudosTextActive: {
-    color: "#b45309",
+    color: colors.kudos,
   },
 });

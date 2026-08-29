@@ -28,6 +28,7 @@ import {
 import { signMediaUrls } from "../lib/media-urls";
 import { getOnlineStatus } from "../lib/network";
 import { drainQueue } from "../lib/offline-queue";
+import { colors, radii, shadows } from "../lib/theme";
 import {
   addExerciseToWorkout,
   addWorkoutMedia,
@@ -729,7 +730,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
             value={nameDraft}
             onChangeText={setNameDraft}
             placeholder={startedAt ? formatDate(startedAt) : ""}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.textFaint}
             maxLength={WORKOUT_NAME_MAX_LENGTH}
             autoCapitalize="sentences"
             returnKeyType="done"
@@ -837,7 +838,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     padding: 24,
     gap: 16,
   },
@@ -851,65 +852,72 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    color: colors.ink,
   },
   card: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 12,
+    ...shadows.card,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surfaceSunken,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
   },
   hintText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   errorText: {
-    color: "#b91c1c",
+    color: colors.danger,
     textAlign: "center",
   },
   secondaryButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#111827",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
+    ...shadows.card,
   },
   secondaryButtonText: {
-    color: "#111827",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   linkText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     paddingVertical: 8,
   },
   deleteWorkoutText: {
     textAlign: "center",
-    color: "#b91c1c",
+    color: colors.danger,
     paddingVertical: 8,
   },
   doneButton: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
+    paddingVertical: 16,
     alignItems: "center",
+    ...shadows.accentButton,
   },
   doneButtonText: {
-    color: "#fff",
+    color: colors.onAccent,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

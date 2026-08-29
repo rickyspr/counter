@@ -1,5 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors } from "../lib/theme";
 
 export type TabName = "home" | "social" | "profile";
 
@@ -45,8 +46,8 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: "row",
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    backgroundColor: "#fff",
+    borderTopColor: colors.divider,
+    backgroundColor: colors.surface,
   },
   tab: {
     flex: 1,
@@ -55,10 +56,10 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 15,
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   labelActive: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontWeight: "700",
   },
 });

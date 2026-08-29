@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../lib/supabase";
+import { colors, radii, shadows } from "../lib/theme";
 
 export function LoginScreen() {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -125,7 +126,7 @@ export function LoginScreen() {
         disabled={googleLoading}
       >
         {googleLoading ? (
-          <ActivityIndicator color="#111827" />
+          <ActivityIndicator color={colors.accentDeep} />
         ) : (
           <Text style={styles.googleButtonText}>Logga in med Google</Text>
         )}
@@ -139,44 +140,49 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     gap: 12,
   },
   title: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: colors.ink,
     textAlign: "center",
     marginBottom: 24,
   },
   input: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
   },
   message: {
-    color: "#b91c1c",
+    color: colors.danger,
     textAlign: "center",
   },
   pillButton: {
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: radii.lg,
+    paddingVertical: 16,
     alignItems: "center",
   },
   button: {
-    backgroundColor: "#111827",
+    backgroundColor: colors.accent,
     marginTop: 8,
+    ...shadows.accentButton,
   },
   buttonText: {
-    color: "#fff",
+    color: colors.onAccent,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   switchText: {
     textAlign: "center",
-    color: "#2563eb",
+    color: colors.accentDeep,
+    fontWeight: "600",
     marginTop: 8,
   },
   divider: {
@@ -188,18 +194,20 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: colors.divider,
   },
   dividerText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   googleButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: colors.border,
+    ...shadows.card,
   },
   googleButtonText: {
-    color: "#111827",
+    color: colors.ink,
     fontSize: 16,
     fontWeight: "600",
   },

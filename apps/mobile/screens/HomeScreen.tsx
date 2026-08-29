@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, radii, shadows } from "../lib/theme";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { useSyncStatus } from "../lib/use-sync-status";
 import {
@@ -287,25 +288,29 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     gap: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
   title: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: colors.ink,
   },
   card: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 20,
     gap: 12,
+    ...shadows.card,
   },
   activeCard: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#111827",
-    padding: 16,
+    backgroundColor: colors.accentGhost,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.accentTint,
+    padding: 20,
     gap: 12,
+    ...shadows.card,
   },
   activeActions: {
     flexDirection: "row",
@@ -317,23 +322,24 @@ const styles = StyleSheet.create({
   },
   discardButton: {
     borderWidth: 1,
-    borderColor: "#b91c1c",
-    borderRadius: 8,
+    borderColor: colors.danger,
+    borderRadius: radii.lg,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: "center",
   },
   discardButtonText: {
-    color: "#b91c1c",
+    color: colors.danger,
     fontSize: 16,
     fontWeight: "600",
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   statsGrid: {
     flexDirection: "row",
@@ -345,20 +351,23 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    color: colors.ink,
   },
   statLabel: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   button: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
+    paddingVertical: 16,
     alignItems: "center",
+    ...shadows.accentButton,
   },
   buttonText: {
-    color: "#fff",
+    color: colors.onAccent,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

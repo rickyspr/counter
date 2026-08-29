@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import type { PreviousSet } from "../lib/queries";
 import type { LoggedSet } from "../lib/set-parsing";
+import { colors, radii, shadows } from "../lib/theme";
 
 interface Props {
   title: string;
@@ -95,7 +96,7 @@ export function ExerciseSection({
               autoFocus={s.id === pendingFocusId}
               onFocus={onFocusHandled}
               placeholder={previous ? String(previous.weightKg) : ""}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textFaint}
               value={s.weightDraft}
               onChangeText={(text) => onChangeDraft(s.id, "weightDraft", text)}
               onBlur={() => onCommitSet(s)}
@@ -104,7 +105,7 @@ export function ExerciseSection({
               style={[styles.smallInput, flagged && styles.inputFlagged]}
               keyboardType="numeric"
               placeholder={previous ? String(previous.reps) : ""}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textFaint}
               value={s.repsDraft}
               onChangeText={(text) => onChangeDraft(s.id, "repsDraft", text)}
               onBlur={() => onCommitSet(s)}
@@ -129,10 +130,11 @@ export function ExerciseSection({
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 8,
+    ...shadows.card,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -142,11 +144,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
     flexShrink: 1,
   },
   removeExerciseText: {
-    color: "#b91c1c",
+    color: colors.danger,
     fontWeight: "600",
   },
   setRow: {
@@ -156,10 +159,10 @@ const styles = StyleSheet.create({
   },
   setLabel: {
     width: 52,
-    color: "#374151",
+    color: colors.inkSecondary,
   },
   columnHeader: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 12,
   },
   columnHeaderCell: {
@@ -171,33 +174,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   deleteButtonText: {
-    color: "#b91c1c",
+    color: colors.danger,
     fontSize: 18,
     fontWeight: "600",
   },
   smallInput: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surfaceSunken,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   inputFlagged: {
-    borderColor: "#b91c1c",
+    borderColor: colors.danger,
   },
   addSetButton: {
     borderWidth: 1,
-    borderColor: "#9ca3af",
+    borderColor: colors.accentTint,
     borderStyle: "dashed",
-    borderRadius: 8,
+    borderRadius: radii.sm,
     paddingVertical: 10,
     alignItems: "center",
     marginTop: 4,
   },
   addSetButtonText: {
-    color: "#374151",
+    color: colors.accentDeep,
     fontWeight: "600",
   },
 });

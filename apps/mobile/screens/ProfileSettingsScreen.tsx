@@ -32,6 +32,7 @@ import { errorMessage } from "../lib/errors";
 import { pickProfileImage, type PickedProfileImage } from "../lib/media-picker";
 import { signAvatarUrl } from "../lib/media-urls";
 import { getOnlineStatus } from "../lib/network";
+import { colors, radii, shadows } from "../lib/theme";
 import {
   fallbackDisplayName,
   fetchProfile,
@@ -405,7 +406,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
             value={nameDraft}
             onChangeText={setNameDraft}
             placeholder={fallbackName}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.textFaint}
             maxLength={DISPLAY_NAME_MAX_LENGTH}
             autoCapitalize="words"
             returnKeyType="done"
@@ -417,7 +418,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
             value={gymDraft}
             onChangeText={setGymDraft}
             placeholder="T.ex. SATS Solna"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.textFaint}
             maxLength={HOME_GYM_MAX_LENGTH}
             autoCapitalize="words"
             returnKeyType="done"
@@ -459,7 +460,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
               setWeightDraft(text);
             }}
             placeholder="82,5"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.textFaint}
             keyboardType="decimal-pad"
             returnKeyType="done"
           />
@@ -476,7 +477,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
               setHeightDraft(text);
             }}
             placeholder="180"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.textFaint}
             keyboardType="number-pad"
             returnKeyType="done"
           />
@@ -488,7 +489,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
             value={bioDraft}
             onChangeText={setBioDraft}
             placeholder="Vad tränar du för?"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.textFaint}
             maxLength={BIO_MAX_LENGTH}
             multiline
             textAlignVertical="top"
@@ -509,7 +510,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
         disabled={saving}
       >
         {saving ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colors.onAccent} />
         ) : (
           <Text style={styles.doneButtonText}>Spara</Text>
         )}
@@ -525,7 +526,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     padding: 24,
     gap: 16,
   },
@@ -539,13 +540,16 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    color: colors.ink,
   },
   card: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 8,
+    ...shadows.card,
   },
   avatarCard: {
     flexDirection: "row",
@@ -557,18 +561,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
   },
   label: {
-    color: "#374151",
+    color: colors.inkSecondary,
     fontSize: 14,
     marginTop: 4,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surfaceSunken,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -577,52 +582,55 @@ const styles = StyleSheet.create({
     minHeight: 88,
   },
   hintText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   fieldError: {
-    color: "#b91c1c",
+    color: colors.danger,
     fontSize: 13,
   },
   errorText: {
-    color: "#b91c1c",
+    color: colors.danger,
     textAlign: "center",
   },
   linkAction: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontWeight: "600",
   },
   linkDanger: {
-    color: "#b91c1c",
+    color: colors.danger,
   },
   linkText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     textAlign: "center",
   },
   secondaryButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#111827",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
+    ...shadows.card,
   },
   secondaryButtonText: {
-    color: "#111827",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   doneButton: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
+    paddingVertical: 16,
     alignItems: "center",
+    ...shadows.accentButton,
   },
   doneButtonDisabled: {
     opacity: 0.6,
   },
   doneButtonText: {
-    color: "#fff",
+    color: colors.onAccent,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { formatMediaDuration, type MediaItem } from "../lib/media-item";
+import { colors, radii, shadows } from "../lib/theme";
 
 interface Props {
   items: MediaItem[];
@@ -121,10 +122,11 @@ const TILE = 96;
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 8,
+    ...shadows.card,
   },
   header: {
     flexDirection: "row",
@@ -134,14 +136,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
   },
   counter: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   strip: {
     flexDirection: "row",
@@ -157,9 +160,9 @@ const styles = StyleSheet.create({
   tile: {
     width: TILE,
     height: TILE,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     overflow: "hidden",
-    backgroundColor: "#e5e7eb",
+    backgroundColor: colors.neutralFill,
   },
   image: {
     width: "100%",
@@ -169,7 +172,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1f2937",
+    backgroundColor: colors.ink,
   },
   playIcon: {
     color: "#fff",
@@ -208,27 +211,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.border,
   },
   removeButtonText: {
-    color: "#b91c1c",
+    color: colors.danger,
     fontSize: 13,
     fontWeight: "700",
   },
   addTile: {
     width: TILE,
     height: TILE,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: "#9ca3af",
+    borderColor: colors.accentTint,
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
   },
   addTileText: {
-    color: "#374151",
+    color: colors.accentDeep,
     fontSize: 28,
     fontWeight: "600",
   },

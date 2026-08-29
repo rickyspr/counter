@@ -1,4 +1,5 @@
 import { StyleSheet, Text } from "react-native";
+import { colors } from "../lib/theme";
 
 interface Props {
   online: boolean;
@@ -48,7 +49,7 @@ export function SyncStatusBanner({
 const styles = StyleSheet.create({
   text: {
     textAlign: "center",
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
 });

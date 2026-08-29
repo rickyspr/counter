@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MUSCLE_GROUPS } from "../lib/muscle-groups";
 import type { ExerciseOption } from "../lib/queries";
+import { colors, radii, shadows } from "../lib/theme";
 
 interface Props {
   visible: boolean;
@@ -305,23 +306,25 @@ export function ExercisePicker({ visible, catalog, onPick, onClose, onCreate }: 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     padding: 24,
     gap: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    color: colors.ink,
   },
   label: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -330,29 +333,30 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   backLinkText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontWeight: "600",
   },
   exerciseRow: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: colors.divider,
   },
   exerciseName: {
     fontSize: 16,
+    color: colors.ink,
   },
   exerciseMuscle: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     paddingVertical: 16,
   },
   addRow: {
     paddingVertical: 14,
   },
   addRowText: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontWeight: "600",
   },
   chipRow: {
@@ -362,20 +366,20 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 16,
+    borderColor: colors.border,
+    borderRadius: radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   chipSelected: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
-    color: "#111827",
+    color: colors.inkSecondary,
   },
   chipTextSelected: {
-    color: "#fff",
+    color: colors.onAccent,
   },
   formButtonRow: {
     flexDirection: "row",
@@ -384,26 +388,28 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#111827",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     alignItems: "center",
+    ...shadows.card,
   },
   secondaryButtonText: {
-    color: "#111827",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: "#111827",
-    borderRadius: 8,
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     alignItems: "center",
   },
   primaryButtonText: {
-    color: "#fff",
-    fontWeight: "600",
+    color: colors.onAccent,
+    fontWeight: "700",
   },
   buttonDisabled: {
     opacity: 0.5,

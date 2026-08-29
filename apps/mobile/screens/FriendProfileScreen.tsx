@@ -27,6 +27,7 @@ import type { MediaItem } from "../lib/media-item";
 import { signAvatarUrl, signMediaUrls } from "../lib/media-urls";
 import { fetchFriendTrainingStats, type TrainingStats } from "../lib/profile";
 import { WORKOUT_HISTORY_PAGE_SIZE } from "../lib/queries";
+import { colors, radii, shadows } from "../lib/theme";
 import { useSyncStatus } from "../lib/use-sync-status";
 
 interface Props {
@@ -338,7 +339,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
@@ -360,23 +361,27 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: colors.ink,
     flexShrink: 1,
   },
   backLink: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontSize: 16,
     fontWeight: "600",
   },
   card: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 8,
+    ...shadows.card,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
   },
   identityRow: {
     flexDirection: "row",
@@ -390,9 +395,10 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 20,
     fontWeight: "700",
+    color: colors.ink,
   },
   metaText: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   detailRow: {
     flexDirection: "row",
@@ -400,15 +406,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   detailLabel: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   detailValue: {
     flexShrink: 1,
     fontWeight: "600",
+    color: colors.inkSecondary,
     textAlign: "right",
   },
   bio: {
-    color: "#374151",
+    color: colors.inkSecondary,
     marginTop: 4,
   },
   statsGrid: {
@@ -421,18 +428,21 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    color: colors.ink,
   },
   statLabel: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   sectionHeading: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: colors.ink,
     marginTop: 4,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   footerSpinner: {
     marginVertical: 16,

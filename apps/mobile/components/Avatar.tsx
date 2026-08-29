@@ -1,5 +1,6 @@
 import { initialsFor } from "@repcount/shared";
 import { Image, StyleSheet, Text, View } from "react-native";
+import { colors } from "../lib/theme";
 
 interface Props {
   // A signed URL for the stored avatar, or a local file:// URI for one
@@ -34,15 +35,15 @@ export function Avatar({ uri, name, size }: Props) {
 
 const styles = StyleSheet.create({
   image: {
-    backgroundColor: "#e5e7eb",
+    backgroundColor: colors.neutralFill,
   },
   fallback: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e5e7eb",
+    backgroundColor: colors.accentTint,
   },
   initials: {
-    color: "#4b5563",
+    color: colors.accentDeep,
     fontWeight: "700",
   },
 });

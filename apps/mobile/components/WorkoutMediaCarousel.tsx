@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { formatMediaDuration, type MediaItem } from "../lib/media-item";
+import { colors } from "../lib/theme";
 
 interface Props {
   items: MediaItem[];
@@ -134,11 +135,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1f2937",
+    backgroundColor: colors.ink,
   },
   placeholder: {
     flex: 1,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: colors.neutralFill,
   },
   playIcon: {
     color: "#fff",

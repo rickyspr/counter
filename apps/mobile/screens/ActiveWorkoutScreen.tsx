@@ -21,6 +21,7 @@ import { ExerciseSection } from "../components/ExerciseSection";
 import { MediaStrip } from "../components/MediaStrip";
 import { MediaViewer } from "../components/MediaViewer";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
+import { colors, radii, shadows } from "../lib/theme";
 import { useSyncStatus } from "../lib/use-sync-status";
 import {
   clearActiveWorkout,
@@ -731,7 +732,7 @@ export function ActiveWorkoutScreen({
           value={nameDraft}
           onChangeText={setNameDraft}
           placeholder={defaultWorkoutName(startedAt.current)}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textFaint}
           maxLength={WORKOUT_NAME_MAX_LENGTH}
           autoCapitalize="sentences"
           returnKeyType="done"
@@ -824,7 +825,7 @@ export function ActiveWorkoutScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     padding: 24,
     gap: 16,
   },
@@ -838,42 +839,47 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    color: colors.ink,
   },
   nameInput: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
   },
   secondaryButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#111827",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
     paddingVertical: 12,
     alignItems: "center",
+    ...shadows.card,
   },
   secondaryButtonText: {
-    color: "#111827",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
   discardText: {
     textAlign: "center",
-    color: "#b91c1c",
+    color: colors.danger,
     paddingVertical: 8,
   },
   finishButton: {
-    backgroundColor: "#b91c1c",
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
+    paddingVertical: 16,
     alignItems: "center",
+    ...shadows.accentButton,
   },
   buttonText: {
-    color: "#fff",
+    color: colors.onAccent,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

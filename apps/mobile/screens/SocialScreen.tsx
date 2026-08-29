@@ -26,6 +26,7 @@ import { listFriends, listPendingRequests, type Friend } from "../lib/follows";
 import type { MediaItem } from "../lib/media-item";
 import { signAvatarUrl, signMediaUrls } from "../lib/media-urls";
 import { WORKOUT_HISTORY_PAGE_SIZE } from "../lib/queries";
+import { colors } from "../lib/theme";
 import { useSyncStatus } from "../lib/use-sync-status";
 
 interface Props {
@@ -318,7 +319,7 @@ export function SocialScreen({ userId, onOpenFriend }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
@@ -341,7 +342,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: colors.ink,
   },
   friendsButton: {
     flexDirection: "row",
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   friendsButtonText: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -358,17 +361,17 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     paddingHorizontal: 5,
-    backgroundColor: "#b45309",
+    backgroundColor: colors.kudos,
     alignItems: "center",
     justifyContent: "center",
   },
   badgeText: {
-    color: "#fff",
+    color: colors.white,
     fontSize: 12,
     fontWeight: "700",
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   footerSpinner: {
     marginVertical: 16,

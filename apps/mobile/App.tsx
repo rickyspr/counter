@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TabBar } from "./components/TabBar";
+import { colors } from "./lib/theme";
 import { AuthProvider, useAuth } from "./lib/auth-context";
 import { subscribeToMediaErrors } from "./lib/media-queue";
 import { clearMediaUrlCache } from "./lib/media-urls";
@@ -187,10 +188,12 @@ export default function App() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.background,
   },
 });

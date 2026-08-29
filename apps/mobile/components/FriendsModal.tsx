@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { errorMessage } from "../lib/errors";
+import { colors, radii } from "../lib/theme";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -349,7 +350,7 @@ function RelationshipAction({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     padding: 24,
     gap: 16,
   },
@@ -360,17 +361,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    color: colors.ink,
   },
   closeText: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontWeight: "600",
     fontSize: 16,
   },
   tabs: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: colors.divider,
   },
   tabButton: {
     paddingVertical: 10,
@@ -378,19 +381,20 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 15,
-    color: "#6b7280",
+    color: colors.textMuted,
   },
   tabLabelActive: {
-    color: "#111827",
+    color: colors.accentDeep,
     fontWeight: "700",
   },
   section: {
     gap: 4,
   },
   input: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -400,7 +404,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.textMuted,
     marginTop: 8,
   },
   row: {
@@ -410,7 +414,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: colors.divider,
   },
   rowTextGroup: {
     flexShrink: 1,
@@ -419,10 +423,11 @@ const styles = StyleSheet.create({
   rowName: {
     fontSize: 16,
     fontWeight: "600",
+    color: colors.ink,
     flexShrink: 1,
   },
   rowMeta: {
-    color: "#6b7280",
+    color: colors.textMuted,
     fontSize: 13,
   },
   rowActions: {
@@ -430,24 +435,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryButton: {
-    backgroundColor: "#111827",
-    borderRadius: 8,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   primaryButtonText: {
-    color: "#fff",
-    fontWeight: "600",
+    color: colors.onAccent,
+    fontWeight: "700",
   },
   secondaryButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.md,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   secondaryButtonText: {
-    color: "#374151",
+    color: colors.inkSecondary,
     fontWeight: "600",
   },
 });
