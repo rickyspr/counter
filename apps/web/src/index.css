@@ -1,20 +1,33 @@
 :root {
-  --text: #1f2937;
-  --text-muted: #6b7280;
-  --bg: #fff;
-  --surface: #fff;
-  --border: #e5e7eb;
-  --card-bg: #f3f4f6;
-  --accent: #111827;
-  --accent-text: #fff;
-  --error: #b91c1c;
-  --kudos: #b45309;
-  --link: #2563eb;
-  /* dataviz: validated (light, categorical slot 1) against --card-bg */
-  --chart-series-1: #2a78d6;
-  --chart-bar: #2a78d6;
-  --chart-gridline: #e5e7eb;
-  --chart-axis: #9ca3af;
+  /* "RepCount Premium Redesign" (Claude Design, "Djup terrakotta") -
+     the same warm palette as apps/mobile/lib/theme.ts. */
+  --text: #2a221e;
+  --text-muted: #78706b;
+  --bg: #f4efeb;
+  --surface: #ffffff;
+  --surface-sunken: #f4ede8;
+  --border: #e7e0da;
+  --card-bg: #ffffff;
+  --accent: #c06c4f;
+  --accent-deep: #89442f;
+  --accent-tint: #fae2d8;
+  --accent-text: #ffffff;
+  --error: #b23b2b;
+  --kudos: #b06a2f;
+  --link: #89442f;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --shadow-card: 0 1px 2px rgba(58, 44, 37, 0.04),
+    0 14px 30px -16px rgba(58, 44, 37, 0.16);
+  --shadow-raised: 0 2px 6px rgba(58, 44, 37, 0.06),
+    0 26px 50px -24px rgba(58, 44, 37, 0.28);
+  /* dataviz: re-tinted to the terracotta accent; deep enough for >=3:1
+     against --card-bg / --surface in both themes. */
+  --chart-series-1: #b8552f;
+  --chart-bar: #b8552f;
+  --chart-gridline: #e7e0da;
+  --chart-axis: #9a918b;
 
   color-scheme: light dark;
   font: 16px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
@@ -24,22 +37,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #f3f4f6;
-    --text-muted: #9ca3af;
-    --bg: #16171d;
-    --surface: #1f2028;
-    --border: #2e303a;
-    --card-bg: #1f2028;
-    --accent: #e5e7eb;
-    --accent-text: #16171d;
-    --error: #f87171;
-    --kudos: #f59e0b;
-    --link: #60a5fa;
-    /* dataviz: validated (dark, categorical slot 1) against --card-bg */
-    --chart-series-1: #3987e5;
-    --chart-bar: #3987e5;
-    --chart-gridline: #2e303a;
-    --chart-axis: #6b7280;
+    --text: #f2ece7;
+    --text-muted: #a89f98;
+    --bg: #1a1613;
+    --surface: #241e1a;
+    --surface-sunken: #201a17;
+    --border: #39302a;
+    --card-bg: #241e1a;
+    --accent: #d98a6b;
+    --accent-deep: #d98a6b;
+    --accent-tint: #3a2b23;
+    --accent-text: #241e1a;
+    --error: #e8917f;
+    --kudos: #d9a066;
+    --link: #e0a488;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3),
+      0 14px 30px -16px rgba(0, 0, 0, 0.5);
+    --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.4),
+      0 26px 50px -24px rgba(0, 0, 0, 0.6);
+    --chart-series-1: #d98a6b;
+    --chart-bar: #d98a6b;
+    --chart-gridline: #39302a;
+    --chart-axis: #a89f98;
   }
 }
 
@@ -65,11 +84,14 @@ main {
 
 h1 {
   font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   margin: 0 0 20px;
 }
 
 h2 {
   font-size: 18px;
+  font-weight: 700;
   margin: 0 0 12px;
 }
 
@@ -119,11 +141,14 @@ section {
   top: 0;
   z-index: 10;
   flex-wrap: wrap;
+  box-shadow: 0 6px 20px -14px rgba(58, 44, 37, 0.2);
 }
 
 .navbar-brand {
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   font-size: 18px;
+  color: var(--accent-deep);
 }
 
 .navbar-links {
@@ -143,7 +168,7 @@ section {
 }
 
 .navbar-link-active {
-  color: var(--text);
+  color: var(--accent-deep);
   border-bottom-color: var(--accent);
 }
 
@@ -151,12 +176,14 @@ section {
 
 .card {
   background: var(--card-bg);
-  border-radius: 12px;
-  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
   margin-bottom: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: var(--shadow-card);
 }
 
 .identity-row {
@@ -167,7 +194,8 @@ section {
 
 .identity-name {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   margin: 0 0 2px;
 }
 
@@ -204,7 +232,8 @@ section {
 .stat-value {
   display: block;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .stat-label {
@@ -217,7 +246,7 @@ section {
 .avatar {
   border-radius: 50%;
   object-fit: cover;
-  background: var(--border);
+  background: var(--accent-tint);
   flex-shrink: 0;
 }
 
@@ -226,7 +255,8 @@ section {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--accent-deep);
+  background: var(--accent-tint);
 }
 
 /* ---- Tables ---- */
@@ -235,8 +265,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   background: var(--card-bg);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 th,
@@ -253,26 +285,30 @@ tbody tr:last-child td {
 /* ---- Buttons ---- */
 
 button {
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
   border: none;
-  background: var(--accent);
+  /* the design's primary action - accent -> deep gradient */
+  background: linear-gradient(155deg, var(--accent), var(--accent-deep));
   color: var(--accent-text);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   font-family: inherit;
+  box-shadow: 0 12px 22px -14px rgba(137, 68, 47, 0.65);
 }
 
 button:disabled {
   opacity: 0.6;
   cursor: default;
+  box-shadow: none;
 }
 
 .button-secondary {
-  background: transparent;
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .link-button {
@@ -282,6 +318,7 @@ button:disabled {
   font-weight: 600;
   padding: 4px;
   text-decoration: none;
+  box-shadow: none;
 }
 
 .load-more {
@@ -308,11 +345,17 @@ input,
 select {
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
-  background: var(--surface);
+  background: var(--surface-sunken);
   color: var(--text);
   font-family: inherit;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .message {
@@ -331,11 +374,12 @@ select {
 
 .workout-card {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--surface);
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-card);
 }
 
 .author-row {
@@ -345,6 +389,7 @@ select {
   padding: 12px 12px 8px;
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -368,6 +413,7 @@ select {
   padding: 14px 16px 16px;
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -389,7 +435,7 @@ select {
 
 .workout-card-volume {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .workout-card-exercises {
@@ -407,9 +453,10 @@ select {
 .kudos-button {
   margin: 0 16px 14px;
   align-self: flex-start;
-  background: transparent;
+  background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
+  box-shadow: var(--shadow-card);
 }
 
 .kudos-button-active {
@@ -442,8 +489,9 @@ select {
   padding: 0;
   border: none;
   border-radius: 0;
-  background: var(--card-bg);
+  background: var(--surface-sunken);
   cursor: pointer;
+  box-shadow: none;
 }
 
 .media-tile img,
@@ -458,7 +506,7 @@ select {
   display: block;
   width: 100%;
   height: 100%;
-  background: var(--card-bg);
+  background: var(--surface-sunken);
 }
 
 .media-play {
@@ -522,11 +570,13 @@ select {
 }
 
 .dialog {
-  background: var(--bg);
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   max-width: 560px;
   width: 100%;
   margin: auto;
+  box-shadow: var(--shadow-raised);
 }
 
 .dialog-header {
@@ -558,8 +608,8 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  background: var(--card-bg);
-  border-radius: 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
@@ -570,7 +620,8 @@ select {
 .summary-value {
   display: block;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .summary-label {
@@ -589,10 +640,11 @@ select {
   height: 96px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  background: var(--card-bg);
+  background: var(--surface-sunken);
   cursor: pointer;
+  box-shadow: none;
 }
 
 .detail-media-tile img,
@@ -604,8 +656,8 @@ select {
 }
 
 .detail-exercise {
-  background: var(--card-bg);
-  border-radius: 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
@@ -632,6 +684,7 @@ select {
 .panel-tab {
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--text-muted);
   font-weight: 600;
   padding: 8px 0;
@@ -641,7 +694,7 @@ select {
 }
 
 .panel-tab-active {
-  color: var(--text);
+  color: var(--accent-deep);
   border-bottom-color: var(--accent);
 }
 
@@ -687,6 +740,7 @@ select {
 .panel-row-link {
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--link);
   font-weight: 600;
   padding: 0;
@@ -757,9 +811,11 @@ select {
 
 .progression-chart {
   position: relative;
-  background: var(--card-bg);
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 12px;
+  box-shadow: var(--shadow-card);
 }
 
 .progression-chart svg {
@@ -788,7 +844,7 @@ select {
 
 .chart-dot {
   fill: var(--chart-series-1);
-  stroke: var(--card-bg);
+  stroke: var(--surface);
   stroke-width: 2;
 }
 
