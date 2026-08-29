@@ -422,6 +422,52 @@ unused by app code (the RPCs replaced them) but kept with their tests.
       every set, which the Data API silently truncates at 1000 rows. e1RM
       is duplicated into SQL as Epley there; keep it in sync with
       `stats/e1rm.ts`.
+- [x] Motivational polish on the mobile app: a time-aware greeting on Hem
+      and a celebration when a workout ends.
+      Hem now opens with a personal, time-of-day greeting ("Godmorgon
+      Rickard", "En sen kväll stoppar inte dig") instead of the "RepCount"
+      wordmark. The copy lives in `packages/shared/src/motivation.ts`
+      (`pickHomeGreeting`, `pickWorkoutPraise`, `timeOfDayBucket`,
+      `firstName`) with tests - it is pure presentation and never written
+      to the DB, but the seeding and the day-part buckets are worth
+      testing, same reasoning as `workout-name.ts`. The pick is
+      DETERMINISTIC: seeded on date + day-part (NOT the name), so the
+      sentence is stable all day, changes the next day, differs
+      morning/evening, and survives a pull-to-refresh - and when the first
+      name loads in (profile → session fallback, AsyncStorage-cached by
+      `apps/mobile/lib/greeting-name.ts` so it works offline) the same
+      sentence just gains a name rather than being swapped.
+      Ending a workout no longer jumps straight to Hem. `onFinish` now
+      carries a `FinishedWorkoutSummary` built entirely from local screen
+      state (`apps/mobile/lib/finished-workout.ts`, reusing
+      `summarizeWorkout` / `calculateE1rm` - no new stats code), so the
+      whole flow works for a workout that only exists in the sync queue.
+      `WorkoutSummaryScreen` (its own App.tsx branch, tab bar hidden, like
+      EditWorkoutScreen) plays a Duolingo-inspired celebration
+      (`components/Celebration.tsx`, react-native-reanimated: springy
+      badge, ring pulses, a radial particle burst, `expo-haptics`) with a
+      dynamic praise line, then reveals a per-section overview with
+      count-up stat cards (the TextInput `animatedProps.text` trick, a
+      worklet-safe thousands formatter). Reduce Motion is honoured
+      (`useReducedMotion`, and `entering` layout animations opt out on
+      their own).
+      Each exercise that beat its ALL-TIME heaviest weight (not just last
+      workout) gets a "Tyngsta hittills" star + a summary ribbon.
+      `exercisesWithNewHeaviest` compares against
+      `get_exercise_progression` (one row per workout, so no 1000-row
+      truncation) fetched per exercise in the background while the
+      celebration plays; it filters to workouts strictly before the
+      current `started_at`, so today's workout never competes with itself
+      whether or not it has synced. First-ever log of an exercise is NOT a
+      star. Requires a connection - offline the history is empty and no
+      stars show, deliberately better than a wrong star.
+      `FinishedWorkoutSummary.beatPrevious` (e1RM vs the last workout,
+      computed locally) survives only to flavour the celebration's gold
+      burst / haptic - the star is the accurate per-exercise signal.
+      New native deps (`react-native-reanimated`, `react-native-worklets`,
+      `expo-haptics`) - needs `npx expo prebuild --clean` + a dev-client
+      rebuild; SDK 57 auto-configures the worklets Babel plugin so there
+      is still no `babel.config.js`.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later
