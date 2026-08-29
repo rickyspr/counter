@@ -1,8 +1,15 @@
-import { summarizeWorkout, type WorkoutSummary } from "@repcount/shared";
-import { useCallback, useEffect, useState } from "react";
 import {
+  pickHomeGreeting,
+  summarizeWorkout,
+  type WorkoutSummary,
+} from "@repcount/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -31,17 +38,43 @@ import {
 
 interface Props {
   userId: string;
+  // Förnamnet att tilltala med i hälsningen. Tomt = hälsa utan namn.
+  greetingName: string;
   // Används för både ett nystartat och ett återupptaget pass.
   onOpenWorkout: (workoutId: string) => void;
 }
 
-export function HomeScreen({ userId, onOpenWorkout }: Props) {
+export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [kudosCount, setKudosCount] = useState<number | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
+
+  // Vald en gång per öppning. Meningen är seedad i shared på dag + tid på
+  // dygnet, så den är stabil hela dagen (pull-to-refresh byter den inte)
+  // men blir en annan imorgon och skiljer morgon från kväll.
+  const now = useRef(new Date()).current;
+  const greeting = pickHomeGreeting({ name: greetingName, now });
+  const greetingIn = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((reduceMotion) => {
+        if (reduceMotion) {
+          greetingIn.setValue(1);
+          return;
+        }
+        Animated.timing(greetingIn, {
+          toValue: 1,
+          duration: 350,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      })
+      .catch(() => greetingIn.setValue(1));
+  }, [greetingIn]);
 
   const loadLatestWorkout = useCallback(async () => {
     if (!online) {
@@ -171,7 +204,22 @@ export function HomeScreen({ userId, onOpenWorkout }: Props) {
         />
       }
     >
-      <Text style={styles.title}>RepCount</Text>
+      <Animated.View
+        style={{
+          opacity: greetingIn,
+          transform: [
+            {
+              translateY: greetingIn.interpolate({
+                inputRange: [0, 1],
+                outputRange: [8, 0],
+              }),
+            },
+          ],
+        }}
+      >
+        <Text style={styles.title}>{greeting.headline}</Text>
+        <Text style={styles.subline}>{greeting.subline}</Text>
+      </Animated.View>
 
       <SyncStatusBanner
         online={online}
@@ -295,6 +343,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.5,
     color: colors.ink,
+  },
+  subline: {
+    marginTop: 6,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.textMuted,
   },
   card: {
     backgroundColor: colors.surface,

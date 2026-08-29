@@ -30,6 +30,10 @@ import {
   type ActiveWorkout,
   type PersistedMedia,
 } from "../lib/active-workout";
+import {
+  buildFinishedWorkoutSummary,
+  type FinishedWorkoutSummary,
+} from "../lib/finished-workout";
 import type { MediaItem } from "../lib/media-item";
 import { pickWorkoutMedia } from "../lib/media-picker";
 import { subscribeToPendingMediaIds } from "../lib/media-queue";
@@ -59,7 +63,9 @@ import {
 interface Props {
   userId: string;
   workoutId: string;
-  onFinish: () => void;
+  // Får en lokalt byggd ögonblicksbild av passet - firandet och
+  // överblicken ska funka även om passet bara ligger i synk-kön.
+  onFinish: (summary: FinishedWorkoutSummary) => void;
   onDiscard: () => void;
 }
 
@@ -525,6 +531,9 @@ export function ActiveWorkoutScreen({
       section: Section;
       parsed: { reps: number; weightKg: number };
     }[] = [];
+    // Sätts först när passet är avslutat på riktigt (kön har fått
+    // end_workout). Skickas vidare till firande-/överblicksskärmen.
+    let finishedSummary: FinishedWorkoutSummary | null = null;
 
     const committed = sections.map((section) => {
       if (section.sets.length === 0) {
@@ -621,9 +630,16 @@ export function ActiveWorkoutScreen({
       // Odöpt pass får det förvalda namnet HÄR, inte i databasen: en
       // default i schemat hade inte kunnat läsa av starttidens timme i
       // användarens tidszon, och en trigger hade gissat på serverns.
-      await endWorkout(
+      const resolvedName =
+        nameDraft.trim() || defaultWorkoutName(startedAt.current);
+      const { ended_at } = await endWorkout(workoutId, resolvedName);
+      finishedSummary = buildFinishedWorkoutSummary(
         workoutId,
-        nameDraft.trim() || defaultWorkoutName(startedAt.current),
+        resolvedName,
+        startedAt.current,
+        ended_at,
+        committed,
+        media,
       );
     } catch (err) {
       Alert.alert(
@@ -639,7 +655,9 @@ export function ActiveWorkoutScreen({
     // redan är avslutat - och kunna trycka "Släng" på det senare.
     finished.current = true;
     await clearActiveWorkout().catch(() => {});
-    onFinish();
+    // finishedSummary är alltid satt här - vi når hit bara när try:n ovan
+    // gick igenom. Vakten är för typen, inte för ett verkligt null-fall.
+    if (finishedSummary) onFinish(finishedSummary);
   }
 
   function confirmDiscardWorkout() {

@@ -4,6 +4,7 @@ export * from "./media";
 export * from "./profile";
 export * from "./stats";
 export * from "./workout-name";
+export * from "./motivation";
 export * from "./data/media-urls";
 export * from "./data/workout-history";
 export * from "./data/feed";

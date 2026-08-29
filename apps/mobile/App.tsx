@@ -9,6 +9,8 @@ import { subscribeToMediaErrors } from "./lib/media-queue";
 import { clearMediaUrlCache } from "./lib/media-urls";
 import { subscribeToSyncErrors } from "./lib/offline-queue";
 import type { Friend } from "./lib/follows";
+import type { FinishedWorkoutSummary } from "./lib/finished-workout";
+import { useGreetingName } from "./lib/greeting-name";
 import { ActiveWorkoutScreen } from "./screens/ActiveWorkoutScreen";
 import { EditWorkoutScreen } from "./screens/EditWorkoutScreen";
 import { FriendProfileScreen } from "./screens/FriendProfileScreen";
@@ -17,6 +19,7 @@ import { LoginScreen } from "./screens/LoginScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileSettingsScreen } from "./screens/ProfileSettingsScreen";
 import { SocialScreen } from "./screens/SocialScreen";
+import { WorkoutSummaryScreen } from "./screens/WorkoutSummaryScreen";
 
 type Screen =
   | { name: "home" }
@@ -24,6 +27,7 @@ type Screen =
   | { name: "profile" }
   | { name: "profile-settings" }
   | { name: "workout"; workoutId: string }
+  | { name: "workout-summary"; summary: FinishedWorkoutSummary }
   | { name: "edit-workout"; workoutId: string }
   | { name: "friend-profile"; friend: Friend };
 
@@ -31,6 +35,7 @@ function AppContent() {
   const { session, loading } = useAuth();
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const userId = session?.user.id;
+  const greetingName = useGreetingName(session);
 
   useEffect(
     () =>
@@ -82,8 +87,21 @@ function AppContent() {
       <ActiveWorkoutScreen
         userId={session.user.id}
         workoutId={screen.workoutId}
-        onFinish={() => setScreen({ name: "home" })}
+        onFinish={(summary) => setScreen({ name: "workout-summary", summary })}
         onDiscard={() => setScreen({ name: "home" })}
+      />
+    );
+  }
+
+  // Firande + överblick efter ett avslutat pass. Egen gren före
+  // tab-bar-blocket, precis som "workout", så flikraden är dold tills
+  // man tryckt "Klar".
+  if (screen.name === "workout-summary") {
+    return (
+      <WorkoutSummaryScreen
+        summary={screen.summary}
+        greetingName={greetingName}
+        onDone={() => setScreen({ name: "home" })}
       />
     );
   }
@@ -146,6 +164,7 @@ function AppContent() {
       ) : (
         <HomeScreen
           userId={session.user.id}
+          greetingName={greetingName}
           onOpenWorkout={(workoutId) =>
             setScreen({ name: "workout", workoutId })
           }
