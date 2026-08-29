@@ -1,4 +1,5 @@
 import {
+  fetchExerciseProgression as sharedFetchProgression,
   fetchLatestWorkoutSummaryInput as sharedFetchLatest,
   fetchWorkoutHistory as sharedFetchHistory,
   mediaStoragePath,
@@ -39,6 +40,12 @@ export const fetchWorkoutHistory = (
 
 export const fetchLatestWorkoutSummaryInput = (userId: string) =>
   sharedFetchLatest(supabase, userId);
+
+// Tyngsta vikt per pass för en övning (get_exercise_progression, en rad
+// per pass - trunkeras inte). Används av pass-översikten för att sätta en
+// stjärna på övningar som slog sitt tidigare tyngsta lyft.
+export const fetchExerciseTopWeightHistory = (exerciseId: string) =>
+  sharedFetchProgression(supabase, exerciseId);
 
 export interface ExerciseOption {
   id: string;

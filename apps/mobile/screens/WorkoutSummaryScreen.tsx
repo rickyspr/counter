@@ -1,4 +1,8 @@
-import { pickWorkoutPraise } from "@repcount/shared";
+import {
+  pickWorkoutPraise,
+  type ExerciseProgressionPoint,
+} from "@repcount/shared";
+import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import {
   ScrollView,
@@ -13,17 +17,23 @@ import Animated, {
   Easing,
   FadeInDown,
   FadeInUp,
+  LinearTransition,
   useAnimatedProps,
   useSharedValue,
   withDelay,
   withTiming,
+  ZoomIn,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Celebration } from "../components/Celebration";
 import { MediaStrip } from "../components/MediaStrip";
 import { MediaViewer } from "../components/MediaViewer";
+import {
+  exercisesWithNewHeaviest,
+  type FinishedWorkoutSummary,
+} from "../lib/finished-workout";
 import type { MediaItem } from "../lib/media-item";
-import type { FinishedWorkoutSummary } from "../lib/finished-workout";
+import { fetchExerciseTopWeightHistory } from "../lib/queries";
 import { colors, radii, shadows } from "../lib/theme";
 
 interface Props {
@@ -144,6 +154,46 @@ export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
   const insets = useSafeAreaInsets();
   const [celebrating, setCelebrating] = useState(true);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  // Övningar som slog sitt tidigare tyngsta lyft. Hämtas i bakgrunden;
+  // stjärnorna poppar in när svaret kommer. Kräver nät - offline blir
+  // mängden tom och inga stjärnor visas.
+  const [newHeaviest, setNewHeaviest] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = [...new Set(summary.exercises.map((e) => e.exerciseId))];
+
+    Promise.all(
+      ids.map((id) =>
+        fetchExerciseTopWeightHistory(id)
+          .then((history) => [id, history] as const)
+          .catch(() => [id, [] as ExerciseProgressionPoint[]] as const),
+      ),
+    ).then((entries) => {
+      if (cancelled) return;
+      setNewHeaviest(
+        exercisesWithNewHeaviest(
+          summary.exercises,
+          summary.startedAt,
+          new Map(entries),
+        ),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [summary]);
+
+  // En egen liten "ping" när stjärnorna dyker upp - men inte mitt i
+  // firandets egna vibrationer. Firar exakt en gång: när stjärnorna kommer
+  // (om firandet redan är över) eller när firandet tar slut (om
+  // stjärnorna redan finns).
+  useEffect(() => {
+    if (!celebrating && newHeaviest.size > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+  }, [celebrating, newHeaviest]);
 
   // Deterministisk på passets sluttid (seedad i shared), så samma pass
   // alltid ger samma mening men två pass i rad ger olika.
@@ -164,7 +214,12 @@ export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
   const { totalVolumeKg, setCount, exerciseCount, durationMinutes } =
     summary.summary;
 
-  const exerciseBase = 140 + 4 * 90 + (summary.beatPrevious ? 90 : 0) + 60;
+  // Efter att de fyra stat-korten kaskadat in.
+  const exerciseBase = 140 + 4 * 90 + 80;
+
+  const heaviestNames = summary.exercises
+    .filter((e) => newHeaviest.has(e.exerciseId))
+    .map((e) => e.name);
 
   return (
     <View style={styles.container}>
@@ -203,22 +258,26 @@ export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
               )}
             </View>
 
-            {summary.beatPrevious && (
+            {heaviestNames.length > 0 && (
               <Animated.View
                 style={styles.ribbon}
-                entering={FadeInDown.delay(140 + 4 * 90)
-                  .springify()
-                  .damping(13)}
+                entering={ZoomIn.springify().damping(13)}
+                layout={LinearTransition.springify()}
               >
                 <Text style={styles.ribbonIcon}>★</Text>
                 <Text style={styles.ribbonText}>
-                  Nytt rekord – tyngre än förra passet
+                  {heaviestNames.length === 1
+                    ? `Nytt tyngsta lyft i ${heaviestNames[0]}`
+                    : `Nytt tyngsta lyft i ${heaviestNames.length} övningar`}
                 </Text>
               </Animated.View>
             )}
 
             {mediaItems.length > 0 && (
-              <Animated.View entering={FadeInDown.delay(exerciseBase - 30)}>
+              <Animated.View
+                entering={FadeInDown.delay(exerciseBase - 30)}
+                layout={LinearTransition.springify()}
+              >
                 <MediaStrip items={mediaItems} onOpen={setViewerIndex} />
               </Animated.View>
             )}
@@ -228,8 +287,20 @@ export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
                 key={i}
                 style={styles.section}
                 entering={FadeInDown.delay(exerciseBase + i * 55)}
+                layout={LinearTransition.springify()}
               >
-                <Text style={styles.sectionTitle}>{exercise.name}</Text>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>{exercise.name}</Text>
+                  {newHeaviest.has(exercise.exerciseId) && (
+                    <Animated.View
+                      style={styles.prBadge}
+                      entering={ZoomIn.springify().damping(10).stiffness(180)}
+                    >
+                      <Text style={styles.prStar}>★</Text>
+                      <Text style={styles.prText}>Tyngsta hittills</Text>
+                    </Animated.View>
+                  )}
+                </View>
                 {exercise.sets.length === 0 ? (
                   <Text style={styles.emptyText}>Inga set.</Text>
                 ) : (
@@ -358,10 +429,35 @@ const styles = StyleSheet.create({
     gap: 4,
     ...shadows.card,
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 17,
     fontWeight: "700",
     color: colors.ink,
+    flexShrink: 1,
+  },
+  prBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.accentGhost,
+    borderRadius: radii.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  prStar: {
+    color: colors.kudos,
+    fontSize: 13,
+  },
+  prText: {
+    color: colors.accentDeep,
+    fontSize: 12,
+    fontWeight: "700",
   },
   setLine: {
     fontSize: 15,

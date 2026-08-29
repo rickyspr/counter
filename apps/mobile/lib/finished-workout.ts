@@ -10,6 +10,7 @@
 import {
   calculateE1rm,
   summarizeWorkout,
+  type ExerciseProgressionPoint,
   type SetRecord,
   type WorkoutSummary,
 } from "@repcount/shared";
@@ -23,6 +24,7 @@ interface SavedSet {
 }
 
 export interface FinishedExercise {
+  exerciseId: string;
   name: string;
   sets: SavedSet[];
 }
@@ -71,6 +73,44 @@ function beatPreviousInSection(section: FinishedWorkoutSection): boolean {
   return bestE1rm(savedSets(section.sets)) > previousBest;
 }
 
+// Vilka övningar i passet som satte ett nytt TYNGSTA LYFT - mätt mot hela
+// den tidigare historiken, inte bara förra passet. Ren jämförelse;
+// anroparen hämtar historiken (get_exercise_progression per övning, som
+// ger en rad per pass och alltså inte trunkeras som en set-lista).
+//
+// Första gången en övning loggas räknas INTE som ett rekord: en stjärna
+// för "du lyfte tyngre än aldrig tidigare" är inte motiverande.
+//
+// Kräver nät. Utan uppkoppling är historiken tom -> inga stjärnor, hellre
+// det än en felaktig stjärna.
+export function exercisesWithNewHeaviest(
+  exercises: FinishedExercise[],
+  startedAt: string,
+  historyByExerciseId: Map<string, ExerciseProgressionPoint[]>,
+): Set<string> {
+  const startedMs = Date.parse(startedAt);
+  const result = new Set<string>();
+
+  for (const exercise of exercises) {
+    const topThisWorkout = exercise.sets.reduce(
+      (max, s) => Math.max(max, s.weightKg),
+      0,
+    );
+    if (topThisWorkout <= 0) continue;
+
+    // Strikt tidigare pass. Det utesluter dagens pass oavsett om det
+    // redan hunnit synka (då finns det i svaret) eller inte.
+    const priorTops = (historyByExerciseId.get(exercise.exerciseId) ?? [])
+      .filter((point) => Date.parse(point.workoutStartedAt) < startedMs)
+      .map((point) => point.topWeightKg);
+    if (priorTops.length === 0) continue;
+
+    if (topThisWorkout > Math.max(...priorTops)) result.add(exercise.exerciseId);
+  }
+
+  return result;
+}
+
 export function buildFinishedWorkoutSummary(
   workoutId: string,
   name: string,
@@ -80,6 +120,7 @@ export function buildFinishedWorkoutSummary(
   media: PersistedMedia[],
 ): FinishedWorkoutSummary {
   const exercises: FinishedExercise[] = sections.map((section) => ({
+    exerciseId: section.exerciseId,
     name: section.exerciseName,
     sets: savedSets(section.sets),
   }));
