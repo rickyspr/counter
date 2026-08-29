@@ -8,28 +8,29 @@ loadEnv({ path: path.resolve(__dirname, "../../.env") });
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "mobile",
+  name: "count",
   slug: "mobile",
   scheme: "repcount",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/icon.png",
+  icon: "./assets/count_icon.png",
   userInterfaceStyle: "light",
   ios: {
-    supportsTablet: true,
-    bundleIdentifier: "com.repcount.mobile",
-  },
+  supportsTablet: true,
+  bundleIdentifier: "com.repcount.mobile",
+  icon: "./assets/count_icon.png",
+},
   android: {
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
-      foregroundImage: "./assets/android-icon-foreground.png",
-      backgroundImage: "./assets/android-icon-background.png",
-      monochromeImage: "./assets/android-icon-monochrome.png",
+      foregroundImage: "./assets/count_icon.png",
+      backgroundImage: "./assets/count_icon.png",
+      monochromeImage: "./assets/count_icon.png",
     },
     predictiveBackGestureEnabled: false,
   },
   web: {
-    favicon: "./assets/favicon.png",
+    favicon: "./assets/count_icon.png",
   },
   plugins: [
     "expo-web-browser",
