@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter shared test:*)",
+      "Bash(pnpm --filter shared typecheck:*)",
+      "Bash(pnpm --filter web build:*)",
+      "Bash(pnpm --filter web lint:*)",
+      "Bash(pnpm --filter mobile exec tsc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git stash list:*)",
+      "Bash(git branch:*)"
+    ]
+  }
+}
