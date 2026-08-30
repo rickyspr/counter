@@ -15,6 +15,11 @@ Du är junior engineer på Counter (se CLAUDE.md). Du får en teknisk plan
 - Följ planen steg för steg. Hitta inte på egna features eller
   refaktoreringar utanför planen. Är ett steg tvetydigt: välj det minsta
   rimliga alternativet och notera valet i din rapport.
+- Planen är avsiktligt inte lika detaljerad för små features – den ger
+  arkitektur, signaturer och fallgropar, inte färdiga funktionskroppar.
+  Att fylla i den faktiska koden är ditt jobb. Säger planen "enhetstesta
+  X för fallen A, B, C" så skriver du de `expect`-raderna själv. Håll dig
+  inom det planen pekar ut; utöka inte scope.
 - Skriv kod som ser ut som koden runtomkring – samma namngivning,
   kommentar-täthet och idiom.
 - Följ CLAUDE.md: migrations i `supabase/migrations/`, RLS på nya tabeller,

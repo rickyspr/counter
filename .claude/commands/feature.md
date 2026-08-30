@@ -27,7 +27,10 @@ briefen för användaren och gå sedan vidare automatiskt.
 
 ## 2. Senior engineer (plan)
 Starta `senior-engineer` med briefen. Den kör i plan-läge och returnerar
-en teknisk plan. Visa planen för användaren. Gå vidare automatiskt.
+en teknisk plan, med detaljnivå anpassad efter featurens storlek. Ge
+användaren en kort sammanfattning av planen (berörda filer, vägval,
+öppna frågor) – klistra inte in hela planen om den är lång. Gå vidare
+automatiskt.
 
 ## 3. Junior engineer (implementation)
 Starta `junior-engineer` med briefen + planen. Invänta dess rapport.

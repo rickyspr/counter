@@ -10,7 +10,7 @@ dirigent och skickar vidare output mellan stegen.
 | Roll | Fil | Modell | Tänk | Får göra |
 |------|-----|--------|------|----------|
 | **owner** | `agents/owner.md` | opus | medium | Läsa kod, diskutera, skriva ett *Implementation Brief*. Ingen kod. |
-| **senior-engineer** | `agents/senior-engineer.md` | opus | max, plan-läge | Läsa kod, skriva en teknisk plan. Ingen kod. |
+| **senior-engineer** | `agents/senior-engineer.md` | opus | max, plan-läge | Läsa kod, skriva en teknisk plan *proportionerlig mot featurens storlek*. Ingen kod. |
 | **junior-engineer** | `agents/junior-engineer.md` | sonnet | medium | Skriva/ändra kod enligt planen. Committar inte. |
 | **tester** | `agents/tester.md` | sonnet | medium | Köra tester/typecheck/lint/bygge, granska diffen. Ingen kod. |
 
@@ -58,6 +58,10 @@ redo för `/feature`. Kan sluta i ett Implementation Brief som du sedan
 ger till `/feature`.
 
 ## Justera flödet
+- **Planens detaljnivå:** senior-engineer kalibrerar planens längd efter
+  featurens storlek (liten / medel / stor) – se avsnittet "Planens
+  omfattning ska vara proportionerlig" i `agents/senior-engineer.md`.
+  Vill du ha en annan avvägning, ändra där.
 - **Byt modell/tänk på en roll:** ändra `model:` / `effort:` i rollens
   `.md`-fil. `effort` kan vara `low` / `medium` / `high` / `xhigh` / `max`.
 - **Fler eller färre loop-varv:** ändra "max 3 varv" i `commands/feature.md`.
