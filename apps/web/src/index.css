@@ -673,6 +673,33 @@ select:focus {
   color: var(--text-muted);
 }
 
+/* ---- Export ---- */
+
+.export-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.export-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 160px;
+}
+
+.export-field span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ---- Friends panel ---- */
 
 .panel-tabs {
