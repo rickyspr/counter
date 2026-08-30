@@ -2,7 +2,7 @@ import {
   pickHomeGreeting,
   summarizeWorkout,
   type WorkoutSummary,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,

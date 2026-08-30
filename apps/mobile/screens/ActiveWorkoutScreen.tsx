@@ -1,7 +1,7 @@
 import {
   defaultWorkoutName,
   WORKOUT_NAME_MAX_LENGTH,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,

@@ -9,7 +9,7 @@ import {
   calculateAge,
   parseDateOnly,
   toDateOnlyString,
-} from "@repcount/shared";
+} from "@counter/shared";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {

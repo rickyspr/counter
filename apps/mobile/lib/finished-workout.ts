@@ -13,7 +13,7 @@ import {
   type ExerciseProgressionPoint,
   type SetRecord,
   type WorkoutSummary,
-} from "@repcount/shared";
+} from "@counter/shared";
 import type { PersistedMedia } from "./active-workout";
 import type { PreviousSet } from "./queries";
 import type { LoggedSet } from "./set-parsing";

@@ -2,35 +2,35 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
-// RepCount har en enda .env i repo-roten (se CLAUDE.md), ingen separat
+// Counter har en enda .env i repo-roten (se CLAUDE.md), ingen separat
 // kopia per app.
 loadEnv({ path: path.resolve(__dirname, "../../.env") });
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "count",
+  name: "Counter",
   slug: "mobile",
-  scheme: "repcount",
+  scheme: "counter",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/count_icon.png",
+  icon: "./assets/counter_icon.png",
   userInterfaceStyle: "light",
   ios: {
   supportsTablet: true,
-  bundleIdentifier: "com.repcount.mobile",
-  icon: "./assets/count_icon.png",
+  bundleIdentifier: "com.counter.mobile",
+  icon: "./assets/counter_icon.png",
 },
   android: {
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
-      foregroundImage: "./assets/count_icon.png",
-      backgroundImage: "./assets/count_icon.png",
-      monochromeImage: "./assets/count_icon.png",
+      foregroundImage: "./assets/counter_icon.png",
+      backgroundImage: "./assets/counter_icon.png",
+      monochromeImage: "./assets/counter_icon.png",
     },
     predictiveBackGestureEnabled: false,
   },
   web: {
-    favicon: "./assets/count_icon.png",
+    favicon: "./assets/counter_icon.png",
   },
   plugins: [
     "expo-web-browser",
@@ -42,11 +42,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-image-picker",
       {
         photosPermission:
-          "RepCount behöver komma åt dina bilder för att du ska kunna lägga till dem i ett pass.",
+          "Counter behöver komma åt dina bilder för att du ska kunna lägga till dem i ett pass.",
         cameraPermission:
-          "RepCount behöver komma åt kameran för att du ska kunna fota eller filma under ett pass.",
+          "Counter behöver komma åt kameran för att du ska kunna fota eller filma under ett pass.",
         microphonePermission:
-          "RepCount behöver komma åt mikrofonen när du spelar in video under ett pass.",
+          "Counter behöver komma åt mikrofonen när du spelar in video under ett pass.",
       },
     ],
     "expo-video",

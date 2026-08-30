@@ -1,6 +1,6 @@
 import type { ViewStyle } from "react-native";
 
-// Design tokens for the "RepCount Premium Redesign" (Claude Design,
+// Design tokens for the "Counter Premium Redesign" (Claude Design,
 // "Djup terrakotta" accent). Only styling lives here - colours, radii,
 // spacing and shadows. Colours are the sRGB conversions of the canvas's
 // oklch values; the design's gradients collapse to a single solid here,

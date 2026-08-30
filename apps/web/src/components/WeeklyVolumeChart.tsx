@@ -1,4 +1,4 @@
-import type { WeeklyTrainingPoint } from "@repcount/shared";
+import type { WeeklyTrainingPoint } from "@counter/shared";
 import { useState } from "react";
 import { formatVolume, formatWeek } from "../lib/format";
 

@@ -5,7 +5,7 @@ import {
   MAX_VIDEO_DURATION_SECONDS,
   MEDIA_IMAGE_QUALITY,
   mimeTypeForExtension,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { File } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { Alert } from "react-native";
@@ -48,8 +48,8 @@ async function ensurePermission(source: Source): Promise<boolean> {
   Alert.alert(
     "Behörighet saknas",
     source === "library"
-      ? "RepCount behöver tillgång till dina bilder. Du kan ge det under Inställningar."
-      : "RepCount behöver tillgång till kameran. Du kan ge det under Inställningar.",
+      ? "Counter behöver tillgång till dina bilder. Du kan ge det under Inställningar."
+      : "Counter behöver tillgång till kameran. Du kan ge det under Inställningar.",
   );
   return false;
 }
@@ -65,7 +65,7 @@ function launch(source: Source): Promise<ImagePicker.ImagePickerResult> {
     return ImagePicker.launchCameraAsync({
       mediaTypes: ["videos"],
       // Taket som gör att filstorleken går att hålla under bucketens
-      // gräns - se MAX_VIDEO_DURATION_SECONDS i @repcount/shared.
+      // gräns - se MAX_VIDEO_DURATION_SECONDS i @counter/shared.
       videoMaxDuration: MAX_VIDEO_DURATION_SECONDS,
       videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
     });

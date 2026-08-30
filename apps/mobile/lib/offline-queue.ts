@@ -100,7 +100,7 @@ type QueuedAction =
       ended_at?: string;
     };
 
-const STORAGE_KEY = "repcount:offline-queue";
+const STORAGE_KEY = "counter:offline-queue";
 
 let queue: QueuedAction[] = [];
 let loadPromise: Promise<void> | null = null;

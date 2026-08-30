@@ -1,4 +1,4 @@
-import { calculateAge } from "@repcount/shared";
+import { calculateAge } from "@counter/shared";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {

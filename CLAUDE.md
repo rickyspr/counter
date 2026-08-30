@@ -1,4 +1,4 @@
-# RepCount – gym workout logging with stats
+# Counter – gym workout logging with stats
 
 ## What the project does
 An app for logging gym workouts (exercise + sets + reps + weight) and
@@ -425,7 +425,7 @@ unused by app code (the RPCs replaced them) but kept with their tests.
 - [x] Motivational polish on the mobile app: a time-aware greeting on Hem
       and a celebration when a workout ends.
       Hem now opens with a personal, time-of-day greeting ("Godmorgon
-      Rickard", "En sen kväll stoppar inte dig") instead of the "RepCount"
+      Rickard", "En sen kväll stoppar inte dig") instead of the "Counter"
       wordmark. The copy lives in `packages/shared/src/motivation.ts`
       (`pickHomeGreeting`, `pickWorkoutPraise`, `timeOfDayBucket`,
       `firstName`) with tests - it is pure presentation and never written

@@ -1,4 +1,4 @@
-# RepCount
+# Counter
 
 Logga dina gympass och följ din utveckling över tid.
 
@@ -72,5 +72,5 @@ den lokala databasen till migrationerna + seed-datat.
 ## Köra tester
 
 ```
-pnpm --filter @repcount/shared test
+pnpm --filter @counter/shared test
 ```

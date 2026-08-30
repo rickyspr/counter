@@ -1,7 +1,7 @@
 import {
   pickWorkoutPraise,
   type ExerciseProgressionPoint,
-} from "@repcount/shared";
+} from "@counter/shared";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import {

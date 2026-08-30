@@ -7,7 +7,7 @@ import {
   type ExerciseProgressionPoint,
   type TrainingStats,
   type WeeklyTrainingPoint,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useEffect, useState } from "react";
 import { ProgressionChart } from "../components/ProgressionChart";
 import { WeeklyVolumeChart } from "../components/WeeklyVolumeChart";

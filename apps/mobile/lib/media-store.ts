@@ -4,7 +4,7 @@ import {
   mediaTypeForMimeType,
   mimeTypeForExtension,
   type MediaType,
-} from "@repcount/shared";
+} from "@counter/shared";
 import * as Crypto from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
 

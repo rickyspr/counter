@@ -13,6 +13,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@counter/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@expo/metro-runtime':
         specifier: ~57.0.10
         version: 57.0.10(@expo/log-box@57.0.2)(expo@57.0.13)(react-dom@19.2.8(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.2(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
@@ -25,9 +28,6 @@ importers:
       '@react-native-community/netinfo':
         specifier: 12.0.1
         version: 12.0.1(react-native@0.86.2(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.2(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
-      '@repcount/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.112.3
         version: 2.112.3
@@ -98,7 +98,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@repcount/shared':
+      '@counter/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@supabase/supabase-js':

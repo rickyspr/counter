@@ -28,7 +28,7 @@ export function errorMessage(err: unknown, fallback = "Okänt fel."): string {
   if (!isMessageLike(err)) return fallback;
   if (err.message.trim() === "") return fallback;
 
-  // The code is carried along when there is one. RepCount talks to
+  // The code is carried along when there is one. Counter talks to
   // Postgres directly, so "42703" or "23514" is often the fastest way
   // to tell a schema problem from a rejected value.
   const code =

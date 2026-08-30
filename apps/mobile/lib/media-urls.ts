@@ -2,7 +2,7 @@ import {
   clearMediaUrlCache as sharedClear,
   signAvatarUrl as sharedSignAvatarUrl,
   signMediaUrls as sharedSignMediaUrls,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { supabase } from "./supabase";
 
 // Signeringen och dess minnescache bor numera i

@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@repcount/shared";
+import { createSupabaseClient } from "@counter/shared";
 
 const supabaseUrl = import.meta.env.SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY;

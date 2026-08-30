@@ -1,4 +1,4 @@
-import { initialsFor } from "@repcount/shared";
+import { initialsFor } from "@counter/shared";
 
 interface Props {
   // A signed URL for the stored avatar, or null to fall back to initials.

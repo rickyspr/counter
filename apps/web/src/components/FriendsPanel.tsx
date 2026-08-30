@@ -10,7 +10,7 @@ import {
   type Friend,
   type FriendRequest,
   type ProfileSearchResult,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 

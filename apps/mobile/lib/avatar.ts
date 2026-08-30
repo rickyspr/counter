@@ -1,4 +1,4 @@
-import { AVATAR_BUCKET, avatarStoragePath } from "@repcount/shared";
+import { AVATAR_BUCKET, avatarStoragePath } from "@counter/shared";
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import type { PickedProfileImage } from "./media-picker";

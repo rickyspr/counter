@@ -7,7 +7,7 @@ import {
   removeFriend as sharedRemoveFriend,
   searchProfiles as sharedSearchProfiles,
   sendFriendRequest as sharedSendRequest,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { supabase } from "./supabase";
 
 // Vänskapslogiken bor numera i packages/shared/src/data/follows.ts -
@@ -24,7 +24,7 @@ export type {
   FriendRequest,
   ProfileSearchResult,
   Relationship,
-} from "@repcount/shared";
+} from "@counter/shared";
 
 export const searchProfiles = (query: string) =>
   sharedSearchProfiles(supabase, query);

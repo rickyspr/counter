@@ -5,7 +5,7 @@ import {
   fetchTrainingStats,
   type TrainingStats,
   type UserProfile,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useEffect, useState } from "react";
 import { Avatar } from "../components/Avatar";
 import { useAuth } from "../lib/auth-context";

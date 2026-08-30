@@ -1,4 +1,4 @@
-import { clearMediaUrlCache } from "@repcount/shared";
+import { clearMediaUrlCache } from "@counter/shared";
 import { NavLink } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -12,7 +12,7 @@ const links = [
 export function NavBar() {
   return (
     <nav className="navbar">
-      <span className="navbar-brand">RepCount</span>
+      <span className="navbar-brand">Counter</span>
       <div className="navbar-links">
         {links.map((link) => (
           <NavLink

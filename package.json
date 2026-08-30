@@ -1,5 +1,5 @@
 {
-  "name": "repcount",
+  "name": "counter",
   "private": true,
   "engines": {
     "node": ">=20"

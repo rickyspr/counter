@@ -8,7 +8,7 @@ import {
   type FeedWorkoutEntry,
   type Friend,
   type WorkoutMediaRow,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FriendsPanel } from "../components/FriendsPanel";

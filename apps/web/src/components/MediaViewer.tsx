@@ -1,4 +1,4 @@
-import type { MediaItem } from "@repcount/shared";
+import type { MediaItem } from "@counter/shared";
 import { useEffect, useState } from "react";
 
 interface Props {

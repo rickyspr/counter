@@ -1,4 +1,4 @@
-import { formatMediaDuration, type MediaItem } from "@repcount/shared";
+import { formatMediaDuration, type MediaItem } from "@counter/shared";
 import { useRef, useState } from "react";
 
 interface Props {

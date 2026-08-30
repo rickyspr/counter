@@ -2,7 +2,7 @@ import type {
   HistoryExercise,
   MediaItem,
   WorkoutSummary,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useEffect, useState } from "react";
 import { formatDateTime, formatVolume } from "../lib/format";
 import { Avatar } from "./Avatar";

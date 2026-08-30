@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { WorkoutSummary } from "@repcount/shared";
+import type { WorkoutSummary } from "@counter/shared";
 import type { MediaItem } from "../lib/media-item";
 import { signMediaUrls } from "../lib/media-urls";
 import type { HistoryExercise, WorkoutMediaRow } from "../lib/queries";

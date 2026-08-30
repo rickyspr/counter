@@ -1,4 +1,4 @@
-import type { MediaItem, WorkoutMediaRow } from "@repcount/shared";
+import type { MediaItem, WorkoutMediaRow } from "@counter/shared";
 import { useCallback, useState } from "react";
 import { signAvatarUrl, signMediaUrls } from "./media-urls";
 

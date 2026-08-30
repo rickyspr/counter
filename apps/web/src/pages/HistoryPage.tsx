@@ -4,7 +4,7 @@ import {
   WORKOUT_HISTORY_PAGE_SIZE,
   type WorkoutHistoryEntry,
   type WorkoutMediaRow,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useCallback, useEffect, useState } from "react";
 import { MediaViewer } from "../components/MediaViewer";
 import { WorkoutCard } from "../components/WorkoutCard";

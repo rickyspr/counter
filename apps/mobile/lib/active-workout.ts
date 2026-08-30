@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { MediaType } from "@repcount/shared";
+import type { MediaType } from "@counter/shared";
 import type { PreviousSet } from "./queries";
 import { readJSON, writeJSON } from "./storage";
 
@@ -15,7 +15,7 @@ import { readJSON, writeJSON } from "./storage";
 // som råkar finnas kvar krockar efter en borttagning. Då skulle
 // upserten i kön (onConflict: workout_exercise_id,set_nr) skriva över
 // ett annat set i tysthet. Se kommentarerna i ActiveWorkoutScreen.
-const STORAGE_KEY = "repcount:active-workout";
+const STORAGE_KEY = "counter:active-workout";
 
 // Ett pass som ligger kvar ett dygn är bortglömt, inte pågående. Städas
 // bort vid appstart istället för att erbjudas.

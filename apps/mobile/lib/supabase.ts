@@ -1,7 +1,7 @@
 import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import { createSupabaseClient } from "@repcount/shared";
+import { createSupabaseClient } from "@counter/shared";
 
 const extra = Constants.expoConfig?.extra ?? {};
 

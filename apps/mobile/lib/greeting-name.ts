@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Session } from "@supabase/supabase-js";
-import { fallbackDisplayName, firstName } from "@repcount/shared";
+import { fallbackDisplayName, firstName } from "@counter/shared";
 import { useEffect, useState } from "react";
 import { fetchProfile } from "./profile";
 

@@ -1,4 +1,4 @@
-import type { MediaItem, WorkoutSummary } from "@repcount/shared";
+import type { MediaItem, WorkoutSummary } from "@counter/shared";
 import { formatDate, formatVolume } from "../lib/format";
 import { Avatar } from "./Avatar";
 import { MediaCarousel } from "./MediaCarousel";

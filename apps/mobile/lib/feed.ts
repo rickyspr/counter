@@ -4,7 +4,7 @@ import {
   removeKudos as sharedRemoveKudos,
   type Friend,
   type WorkoutHistoryCursor,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { supabase } from "./supabase";
 
 // Flödeslogiken bor numera i packages/shared/src/data/feed.ts - webben
@@ -15,7 +15,7 @@ import { supabase } from "./supabase";
 // aldrig skrivningar via synk-kön - kudos är, precis som en vänförfrågan,
 // en engångshandling utan ordningsberoende mot köade actions.
 
-export { feedCursorFor, type FeedWorkoutEntry } from "@repcount/shared";
+export { feedCursorFor, type FeedWorkoutEntry } from "@counter/shared";
 
 export const fetchFeed = (
   currentUserId: string,

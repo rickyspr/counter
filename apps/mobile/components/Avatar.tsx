@@ -1,4 +1,4 @@
-import { initialsFor } from "@repcount/shared";
+import { initialsFor } from "@counter/shared";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { colors } from "../lib/theme";
 

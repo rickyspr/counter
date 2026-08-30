@@ -10,7 +10,7 @@ import {
   type Friend,
   type TrainingStats,
   type WorkoutMediaRow,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Avatar } from "../components/Avatar";

@@ -136,7 +136,7 @@ function Ring({ v, color }: { v: SharedValue<number>; color: string }) {
 }
 
 // Duolingo-inspirerat firande (inte en kopia): studsig bricka, ringpuls,
-// radiell partikelsvärm och en peppmening - allt i RepCounts terrakotta.
+// radiell partikelsvärm och en peppmening - allt i Counters terrakotta.
 // Byggt på react-native-reanimated (kräver New Architecture, standard i
 // SDK 57). Overlayen täcker överblicken bakom sig tills den tonat ut.
 export function Celebration({ praise, beatPrevious, onDone }: Props) {

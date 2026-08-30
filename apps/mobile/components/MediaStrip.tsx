@@ -1,4 +1,4 @@
-import { MAX_MEDIA_PER_WORKOUT } from "@repcount/shared";
+import { MAX_MEDIA_PER_WORKOUT } from "@counter/shared";
 import {
   ActivityIndicator,
   Image,

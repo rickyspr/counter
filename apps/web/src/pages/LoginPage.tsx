@@ -40,7 +40,7 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <h1>RepCount</h1>
+      <h1>Counter</h1>
       <form className="login-form" onSubmit={handleSubmit}>
         <input
           type="email"

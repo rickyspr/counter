@@ -1,4 +1,4 @@
-import { WORKOUT_MEDIA_BUCKET, type MediaType } from "@repcount/shared";
+import { WORKOUT_MEDIA_BUCKET, type MediaType } from "@counter/shared";
 import { File, UploadType } from "expo-file-system";
 import { deleteLocalMedia, sweepOrphanedMedia } from "./media-store";
 import { getOnlineStatus, onReconnect } from "./network";
@@ -78,7 +78,7 @@ interface StoredState {
   failed: MediaJob[];
 }
 
-const STORAGE_KEY = "repcount:media-queue";
+const STORAGE_KEY = "counter:media-queue";
 
 // Efter så många svar som kan vara antingen ett utgånget token eller ett
 // RLS-avslag ger vi upp. Ett obegränsat omförsök hade snurrat för evigt

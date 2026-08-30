@@ -1,4 +1,4 @@
-import { WORKOUT_NAME_MAX_LENGTH } from "@repcount/shared";
+import { WORKOUT_NAME_MAX_LENGTH } from "@counter/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,

@@ -3,7 +3,7 @@ import {
   fetchFriendTrainingStats as sharedFetchFriendStats,
   fetchTrainingStats as sharedFetchStats,
   type UserProfile,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { supabase } from "./supabase";
 
 // The read half of the profile (fetchProfile, the training-stats RPCs,
@@ -17,7 +17,7 @@ import { supabase } from "./supabase";
 // dependencies and nothing to replay offline. Its own module, so the
 // rule in queries.ts (mutations only go through the queue) stays true.
 
-export { fallbackDisplayName, type UserProfile, type TrainingStats } from "@repcount/shared";
+export { fallbackDisplayName, type UserProfile, type TrainingStats } from "@counter/shared";
 
 // What the settings screen may write - everything in UserProfile except
 // createdAt, which belongs to the row rather than to the user.

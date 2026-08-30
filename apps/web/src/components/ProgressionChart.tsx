@@ -1,4 +1,4 @@
-import type { ExerciseProgressionPoint } from "@repcount/shared";
+import type { ExerciseProgressionPoint } from "@counter/shared";
 import { useState, type PointerEvent } from "react";
 
 interface Props {

@@ -1,7 +1,7 @@
 import {
   signAvatarUrl as sharedSignAvatarUrl,
   signMediaUrls as sharedSignMediaUrls,
-} from "@repcount/shared";
+} from "@counter/shared";
 import { supabase } from "./supabase";
 
 // The signing logic and its in-memory TTL cache live in

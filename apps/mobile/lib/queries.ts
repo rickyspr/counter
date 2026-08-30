@@ -7,7 +7,7 @@ import {
   toMediaRow,
   type WorkoutHistoryCursor,
   type WorkoutMediaRow,
-} from "@repcount/shared";
+} from "@counter/shared";
 import * as Crypto from "expo-crypto";
 import type { PersistedMedia } from "./active-workout";
 import { DEFAULT_EXERCISE_CATALOG } from "./default-exercise-catalog";
@@ -29,7 +29,7 @@ export {
   type HistoryExercise,
   type RawWorkoutRow,
   type WorkoutHistoryEntry,
-} from "@repcount/shared";
+} from "@counter/shared";
 export type { WorkoutHistoryCursor, WorkoutMediaRow };
 
 export const fetchWorkoutHistory = (
@@ -57,8 +57,8 @@ export interface ExerciseOption {
   fallback?: boolean;
 }
 
-const EXERCISE_CACHE_KEY = "repcount:exercise-cache";
-const PREVIOUS_SETS_CACHE_PREFIX = "repcount:previous-sets:";
+const EXERCISE_CACHE_KEY = "counter:exercise-cache";
+const PREVIOUS_SETS_CACHE_PREFIX = "counter:previous-sets:";
 
 // Övningskatalogen ändras sällan, så vi cachar den lokalt och faller
 // tillbaka på cachen om nätverket är nere - annars går det inte att
@@ -151,7 +151,7 @@ export async function startWorkout(
 
 // `name` är passets namn som det ser ut vid avslutet - antingen det
 // användaren skrivit, eller det förvalda som härletts ur starttiden (se
-// defaultWorkoutName i @repcount/shared). Ett pass som avslutas här har
+// defaultWorkoutName i @counter/shared). Ett pass som avslutas här har
 // alltså ALLTID ett namn; null i kolumnen betyder ett pass loggat innan
 // den här funktionen fanns, och de visas med sitt datum som förut.
 export async function endWorkout(
