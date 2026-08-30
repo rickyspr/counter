@@ -119,6 +119,9 @@ export const WORKOUT_HISTORY_PAGE_SIZE = 20;
 export interface HistoryExercise {
   workoutExerciseId: string;
   name: string;
+  // undefined = kolumnen fanns inte i selecten. null = hämtad men tom.
+  // Fritext i databasen (muscle_group är `text` utan enum).
+  muscleGroup?: string | null;
   // I positionsordning. set_nr kan ha luckor efter en borttagning, så
   // raderna märks med sin POSITION i vyn - aldrig med set_nr.
   sets: { reps: number; weightKg: number }[];
@@ -150,6 +153,15 @@ export function cursorFor(
 ): WorkoutHistoryCursor | null {
   const last = entries[entries.length - 1];
   return last ? { startedAt: last.startedAt, id: last.id } : null;
+}
+
+// "started_at < X, eller samma started_at och id < Y". Tidsstämpeln
+// måste citeras: PostgREST delar or-uttrycket på komma och punkt, och
+// en ISO-sträng innehåller både ":" och "+". Utbruten så att
+// fetchWorkoutHistory, fetchFeed och exporthämtaren delar exakt samma
+// keyset-uttryck - en tredje handskriven kopia vore duplicerad logik.
+export function keysetFilter(cursor: WorkoutHistoryCursor): string {
+  return `started_at.lt."${cursor.startedAt}",and(started_at.eq."${cursor.startedAt}",id.lt.${cursor.id})`;
 }
 
 // En sida av passhistoriken, med alla set inbäddade i SAMMA anrop. Att
@@ -184,12 +196,7 @@ export async function fetchWorkoutHistory(
     .limit(limit);
 
   if (cursor) {
-    // "started_at < X, eller samma started_at och id < Y". Tidsstämpeln
-    // måste citeras: PostgREST delar or-uttrycket på komma och punkt, och
-    // en ISO-sträng innehåller både ":" och "+".
-    query = query.or(
-      `started_at.lt."${cursor.startedAt}",and(started_at.eq."${cursor.startedAt}",id.lt.${cursor.id})`,
-    );
+    query = query.or(keysetFilter(cursor));
   }
 
   const { data, error } = await query;
@@ -220,7 +227,7 @@ export interface RawWorkoutRow {
         id: string;
         order_index: number;
         exercise_id: string;
-        exercises: { name: string } | null;
+        exercises: { name: string; muscle_group?: string | null } | null;
         sets: { set_nr: number; reps: number; weight_kg: number }[] | null;
       }[]
     | null;
@@ -238,6 +245,8 @@ export function mapWorkoutHistoryRow(
   const exercises: HistoryExercise[] = workoutExercises.map((we) => ({
     workoutExerciseId: we.id,
     name: we.exercises?.name ?? "Okänd övning",
+    // Ingen ?? null - undefined (kolumnen saknas i selecten) ska bevaras.
+    muscleGroup: we.exercises?.muscle_group,
     sets: [...(we.sets ?? [])]
       .sort((a, b) => a.set_nr - b.set_nr)
       .map((s) => ({ reps: s.reps, weightKg: s.weight_kg })),

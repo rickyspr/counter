@@ -1,13 +1,16 @@
 import {
   calculateAge,
   fallbackDisplayName,
+  fetchFirstWorkoutStartedAt,
   fetchProfile,
   fetchTrainingStats,
+  toLocalDateOnly,
   type TrainingStats,
   type UserProfile,
 } from "@counter/shared";
 import { useEffect, useState } from "react";
 import { Avatar } from "../components/Avatar";
+import { WorkoutExportDialog } from "../components/WorkoutExportDialog";
 import { useAuth } from "../lib/auth-context";
 import { formatDuration, formatMonthYear, formatTotalVolume } from "../lib/format";
 import { signAvatarUrl } from "../lib/media-urls";
@@ -20,14 +23,22 @@ export function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [stats, setStats] = useState<TrainingStats | null>(null);
+  const [firstWorkoutStartedAt, setFirstWorkoutStartedAt] = useState<
+    string | null
+  >(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.allSettled([fetchProfile(supabase, userId), fetchTrainingStats(supabase)])
-      .then(async ([profileResult, statsResult]) => {
+    Promise.allSettled([
+      fetchProfile(supabase, userId),
+      fetchTrainingStats(supabase),
+      fetchFirstWorkoutStartedAt(supabase, userId),
+    ])
+      .then(async ([profileResult, statsResult, firstWorkoutResult]) => {
         if (cancelled) return;
         if (profileResult.status === "fulfilled") {
           setProfile(profileResult.value);
@@ -35,6 +46,11 @@ export function ProfilePage() {
           setAvatarUrl(path ? await signAvatarUrl(path).catch(() => null) : null);
         }
         if (statsResult.status === "fulfilled") setStats(statsResult.value);
+        if (firstWorkoutResult.status === "fulfilled") {
+          setFirstWorkoutStartedAt(firstWorkoutResult.value);
+        }
+        // Ett avvisat tredje resultat ska inte ge felmeddelande - då
+        // faller från-datumet bara tillbaka på "medlem sedan".
         const failure = [profileResult, statsResult].find(
           (r) => r.status === "rejected",
         );
@@ -115,10 +131,34 @@ export function ProfilePage() {
             )}
           </section>
 
+          {(stats?.workoutCount ?? 0) > 0 && (
+            <section className="card">
+              <h2>Exportera träningsdata</h2>
+              <p className="text-muted">
+                Ladda ner din historik som CSV – en rad per set, vikter i kg.
+              </p>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => setExportOpen(true)}
+              >
+                Exportera träningsdata
+              </button>
+            </section>
+          )}
+
           <p className="text-muted">
             Profilen redigeras i mobilappen.
           </p>
         </>
+      )}
+
+      {exportOpen && (
+        <WorkoutExportDialog
+          userId={userId}
+          defaultFromDate={toLocalDateOnly(firstWorkoutStartedAt ?? memberSince)}
+          onClose={() => setExportOpen(false)}
+        />
       )}
     </div>
   );

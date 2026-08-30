@@ -28,6 +28,7 @@ pnpm --filter web dev
 
 Öppna adressen som skrivs ut (t.ex. `http://localhost:5173`). Logga in
 eller skapa konto, logga ett pass i mobilappen för att se statistik.
+Under Profil kan du exportera hela din träningshistorik som CSV.
 
 ## Testa mobilappen
 

@@ -3,6 +3,7 @@ import type { Database } from "../database.types";
 import type { WorkoutSummary } from "../stats";
 import type { Friend } from "./follows";
 import {
+  keysetFilter,
   mapWorkoutHistoryRow,
   WORKOUT_HISTORY_PAGE_SIZE,
   type HistoryExercise,
@@ -74,9 +75,7 @@ export async function fetchFeed(
     .limit(limit);
 
   if (cursor) {
-    query = query.or(
-      `started_at.lt."${cursor.startedAt}",and(started_at.eq."${cursor.startedAt}",id.lt.${cursor.id})`,
-    );
+    query = query.or(keysetFilter(cursor));
   }
 
   const { data, error } = await query;
