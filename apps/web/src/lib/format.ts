@@ -1,17 +1,8 @@
 // Svensk presentation av träningssiffror. Speglar hjälparna i mobilens
 // skärmar (ProfileScreen m.fl.) - samma avvägningar, se kommentarerna
-// där.
-
-// Total tid blir snabbt hundratals minuter, vilket ingen läser som tid.
-// Minuterna behålls: Math.round(minuter / 60) hade gjort ett enda
-// 90-minuterspass till "2 h".
-export function formatDuration(minutes: number): string {
-  const rounded = Math.round(minutes);
-  if (rounded < 60) return `${rounded} min`;
-  const hours = Math.floor(rounded / 60);
-  const rest = rounded % 60;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
-}
+// där. formatDuration bor numera i packages/shared och re-exporteras här
+// så anropssidorna kan fortsätta importera från ../lib/format.
+export { formatDuration } from "@counter/shared";
 
 // Livstidsvolym hamnar i tiotusentals kg. Ton är läsbart, kg är det inte.
 export function formatTotalVolume(kg: number): string {

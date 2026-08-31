@@ -1,3 +1,4 @@
+import { formatDuration } from "@counter/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -45,14 +46,6 @@ function formatMonthYear(iso: string): string {
     month: "long",
     year: "numeric",
   });
-}
-
-function formatDuration(minutes: number): string {
-  const rounded = Math.round(minutes);
-  if (rounded < 60) return `${rounded} min`;
-  const hours = Math.floor(rounded / 60);
-  const rest = rounded % 60;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
 function formatTotalVolume(kg: number): string {
