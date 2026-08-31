@@ -468,6 +468,52 @@ unused by app code (the RPCs replaced them) but kept with their tests.
       `expo-haptics`) - needs `npx expo prebuild --clean` + a dev-client
       rebuild; SDK 57 auto-configures the worklets Babel plugin so there
       is still no `babel.config.js`.
+- [x] Guardrails around the active workout screen: a live elapsed timer,
+      a confirm dialog before deleting a filled-in set, and a confirm
+      dialog before ending the session.
+      The timer is a diskret row under the "Pågående pass" heading
+      (`apps/mobile/components/ActiveWorkoutTimer.tsx`), minute
+      resolution ("Startade nyss" → "Igång i 1 h 4 min"), isolated in
+      its own component so ticking never re-renders the set list. It
+      ticks every 15 s (resolution is minutes, so a per-second interval
+      would wake the JS thread 60× for the same pixels) and also
+      recomputes on `AppState` → `"active"` so the number is right
+      immediately after the app comes back from the pocket. It reads the
+      hydrated `startedAt.current`, so a resumed workout counts from the
+      original start, not from reopen.
+      `confirmDeleteSet` now shows the same Alert as removing a whole
+      exercise when the row has content; a genuinely empty row still
+      goes without a prompt. "Empty" is `!hasContent && set.saved ===
+      null` on purpose - dropping the `saved === null` half would let a
+      row that IS on the server be deleted silently when its fields are
+      cleared without a blur. A confirmed delete ALWAYS routes through
+      `handleDeleteSet` (which queues `delete_set`), never a screen-only
+      removal: `keyboardShouldPersistTaps="handled"` makes the ✕ tap also
+      blur the field, so `onBlur → saveSet` can race a `add_set` into the
+      queue while the `onPress` closure still sees `saved: null` - a
+      screen-only removal would leak a row that stays in the database,
+      invisible in the UI but counted in stats. `delete_set` on a
+      non-existent row is a documented no-op and FIFO puts it after any
+      `add_set` that won the race.
+      `handleFinish` is split into a validation half and `commitFinish`:
+      after the half-filled-set validation and the empty-workout branch
+      (both unchanged, both still silent), it shows "Avsluta passet?" /
+      "Passet har pågått i 1 h 4 min." with a neutral "Avsluta pass" (not
+      destructive - ending is the goal) and "Fortsätt logga". `committed`
+      / `writes` are computed once in the validation half and passed to
+      `commitFinish` as arguments, never recomputed - a second
+      `isUnchanged` pass against a mutated `sections` could drop a set.
+      `formatDuration` moved to `packages/shared/src/duration.ts` (with
+      tests) alongside a new `elapsedMinutes` - `formatDuration` rounds
+      (right for the SQL `total_minutes` aggregate its existing callers
+      pass), `elapsedMinutes` floors (a stopwatch must not show "1 min"
+      after 30 s) and clamps NaN/negative to 0. `ProfileScreen`,
+      `FriendProfileScreen` and the web's `lib/format.ts` all import it
+      now instead of their own copies. All client-local: no migration,
+      no new native dep, works offline. `EditWorkoutScreen`'s own
+      `confirmDeleteSet` is deliberately untouched - that screen requires
+      a drained queue and reads server truth, so `saved === null` means
+      something else there.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later
