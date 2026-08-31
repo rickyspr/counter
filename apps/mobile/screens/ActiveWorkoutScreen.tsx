@@ -1,5 +1,7 @@
 import {
   defaultWorkoutName,
+  elapsedMinutes,
+  formatDuration,
   WORKOUT_NAME_MAX_LENGTH,
 } from "@counter/shared";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActiveWorkoutTimer } from "../components/ActiveWorkoutTimer";
 import { ExercisePicker } from "../components/ExercisePicker";
 import { ExerciseSection } from "../components/ExerciseSection";
 import { MediaStrip } from "../components/MediaStrip";
@@ -77,6 +80,12 @@ interface Section {
   // Vad användaren körde på samma övning förra passet, i positions-
   // ordning. Visas som grå platshållare - inte som värden.
   previousSets: PreviousSet[];
+}
+
+interface PendingSetWrite {
+  set: LoggedSet;
+  section: Section;
+  parsed: { reps: number; weightKg: number };
 }
 
 export function ActiveWorkoutScreen({
@@ -392,22 +401,41 @@ export function ActiveWorkoutScreen({
     delete firstInputs.current[set.id];
   }
 
+  function describeSet(set: LoggedSet): string {
+    const reps = set.repsDraft.trim();
+    const weight = set.weightDraft.trim();
+    if (reps !== "" && weight !== "") return `${reps} reps × ${weight} kg`;
+    if (reps !== "") return `${reps} reps`;
+    if (weight !== "") return `${weight} kg`;
+    // Bara nåbart när raden är sparad - annars hade den räknats som tom
+    // ovan och tagits bort utan dialog.
+    return `${set.saved!.reps} reps × ${set.saved!.weightKg} kg`;
+  }
+
   function confirmDeleteSet(section: Section, set: LoggedSet, label: number) {
-    // En rad som aldrig sparats finns bara på skärmen - inget att
-    // bekräfta och inget att ta bort på servern.
-    if (set.saved === null) {
+    const hasContent =
+      set.repsDraft.trim() !== "" || set.weightDraft.trim() !== "";
+    // En helt tom rad som aldrig sparats finns bara på skärmen - inget att
+    // bekräfta och inget att ta bort. En rad med innehåll frågar alltid,
+    // även om fokus inte hunnit lämna fältet: annars försvinner en
+    // nyifylld rad tyst.
+    if (!hasContent && set.saved === null) {
       removeSetRow(section, set);
       return;
     }
 
     Alert.alert(
       "Ta bort set?",
-      `Set ${label} (${set.saved.reps} reps × ${set.saved.weightKg} kg) tas bort. Det går inte att ångra.`,
+      `Set ${label} (${describeSet(set)}) tas bort. Det går inte att ångra.`,
       [
         { text: "Avbryt", style: "cancel" },
         {
           text: "Ta bort",
           style: "destructive",
+          // Alltid via handleDeleteSet: keyboardShouldPersistTaps blurrar
+          // fältet med samma tryck, så onBlur kan hinna köa ett add_set.
+          // delete_set på en rad som inte finns är en no-op och FIFO
+          // lägger den efter add_set:et som vann kapplöpningen.
           onPress: () => void handleDeleteSet(section, set),
         },
       ],
@@ -526,14 +554,7 @@ export function ActiveWorkoutScreen({
     // servern med saved === null lokalt, och ett efterföljande ✕ hade
     // tagit bort den bara från skärmen och lämnat kvar den i databasen.
     const problems: { setId: string | null; label: string }[] = [];
-    const writes: {
-      set: LoggedSet;
-      section: Section;
-      parsed: { reps: number; weightKg: number };
-    }[] = [];
-    // Sätts först när passet är avslutat på riktigt (kön har fått
-    // end_workout). Skickas vidare till firande-/överblicksskärmen.
-    let finishedSummary: FinishedWorkoutSummary | null = null;
+    const writes: PendingSetWrite[] = [];
 
     const committed = sections.map((section) => {
       if (section.sets.length === 0) {
@@ -613,6 +634,28 @@ export function ActiveWorkoutScreen({
       onDiscard();
       return;
     }
+
+    // Allt är giltigt - be om bekräftelse innan passet faktiskt avslutas,
+    // med passets längd som påminnelse om vad som är på väg att hända.
+    // Ett feltryck ska inte avsluta passet.
+    const minutes = elapsedMinutes(startedAt.current);
+    Alert.alert(
+      "Avsluta passet?",
+      `Passet har pågått i ${formatDuration(minutes)}.`,
+      [
+        { text: "Fortsätt logga", style: "cancel" },
+        {
+          text: "Avsluta pass",
+          onPress: () => void commitFinish(committed, writes),
+        },
+      ],
+    );
+  }
+
+  async function commitFinish(committed: Section[], writes: PendingSetWrite[]) {
+    // Sätts först när passet är avslutat på riktigt (kön har fått
+    // end_workout). Skickas vidare till firande-/överblicksskärmen.
+    let finishedSummary: FinishedWorkoutSummary | null = null;
 
     try {
       await Promise.all(
@@ -738,7 +781,10 @@ export function ActiveWorkoutScreen({
         // till att stänga tangentbordet istället för att träffa knappen.
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Pågående pass</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Pågående pass</Text>
+          <ActiveWorkoutTimer startedAt={startedAt.current} />
+        </View>
 
         {/* Platshållaren ÄR det förvalda namnet, inte ett exempel: låter
             man fältet stå tomt är det precis det passet kommer att heta.
@@ -854,6 +900,9 @@ const styles = StyleSheet.create({
   scroll: {
     gap: 16,
     paddingBottom: 16,
+  },
+  header: {
+    gap: 4,
   },
   title: {
     fontSize: 28,

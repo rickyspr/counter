@@ -1,4 +1,4 @@
-import { calculateAge } from "@counter/shared";
+import { calculateAge, formatDuration } from "@counter/shared";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -62,18 +62,6 @@ function formatMonthYear(iso: string): string {
     month: "long",
     year: "numeric",
   });
-}
-
-// Total tid blir snabbt hundratals minuter, vilket ingen läser som tid.
-// Minuterna behålls: `Math.round(minuter / 60)` hade gjort ett enda
-// 90-minuterspass till "2 h", och felet är som störst just när man har
-// minst träning bakom sig.
-function formatDuration(minutes: number): string {
-  const rounded = Math.round(minutes);
-  if (rounded < 60) return `${rounded} min`;
-  const hours = Math.floor(rounded / 60);
-  const rest = rounded % 60;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
 // Livstidsvolym hamnar i tiotusentals kg. Ton är läsbart, kg är det inte.
