@@ -2,6 +2,9 @@ import {
   defaultWorkoutName,
   elapsedMinutes,
   formatDuration,
+  formatWeight,
+  unitLabel,
+  weightInputValue,
   WORKOUT_NAME_MAX_LENGTH,
 } from "@counter/shared";
 import { useEffect, useRef, useState } from "react";
@@ -19,6 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActiveWorkoutTimer } from "../components/ActiveWorkoutTimer";
+import { RestTimerBar } from "../components/RestTimerBar";
 import { ExercisePicker } from "../components/ExercisePicker";
 import { ExerciseSection } from "../components/ExerciseSection";
 import { MediaStrip } from "../components/MediaStrip";
@@ -62,6 +66,8 @@ import {
   parseSetDrafts,
   type LoggedSet,
 } from "../lib/set-parsing";
+import { useRestTimerSettings } from "../lib/rest-timer";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   userId: string;
@@ -118,6 +124,12 @@ export function ActiveWorkoutScreen({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
+  const { unit } = useUnit();
+  const restTimer = useRestTimerSettings();
+  // Absolut måltid för vilotimern, eller null när den inte går. Ingen
+  // persistens: en vilopaus är sekunder, inte något som ska överleva att
+  // appen swipas bort.
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
 
   useEffect(() => subscribeToPendingMediaIds(setPendingMediaIds), []);
 
@@ -157,7 +169,26 @@ export function ActiveWorkoutScreen({
           nextSetNr.current = { ...stored.nextSetNr };
           startedAt.current = stored.startedAt;
           setNameDraft(stored.name ?? "");
-          setSections(stored.sections);
+          // Utkasten sparas som text i den enhet de skrevs. Har enheten
+          // bytts mellan två öppningar av samma pass skulle "100" (kg)
+          // plötsligt läsas som 100 lbs och nästa blur skriva över ett
+          // 100 kg-set med 45,36 kg. Rendera därför om varje SPARAD rad
+          // ur sitt kg-värde i aktuell enhet. Rader med saved === null
+          // behåller sin text - de är inte skrivna någonstans än.
+          setSections(
+            stored.sections.map((section) => ({
+              ...section,
+              sets: section.sets.map((set) =>
+                set.saved !== null
+                  ? {
+                      ...set,
+                      repsDraft: String(set.saved.reps),
+                      weightDraft: weightInputValue(set.saved.weightKg, unit),
+                    }
+                  : set,
+              ),
+            })),
+          );
           setMedia(stored.media ?? []);
         }
         setHydrated(true);
@@ -168,7 +199,11 @@ export function ActiveWorkoutScreen({
     return () => {
       cancelled = true;
     };
-  }, [userId, workoutId]);
+    // `unit` med i beroendena: byts enheten (regionsdefaulten landar
+    // asynkront strax efter mount) måste de sparade raderna renderas om
+    // i den nya enheten. Blobben speglas till disk vid varje ändring, så
+    // omläsningen ser alltid färsk data.
+  }, [userId, workoutId, unit]);
 
   function snapshot(
     currentSections: Section[],
@@ -348,9 +383,12 @@ export function ActiveWorkoutScreen({
   // hoppa mellan reps och vikt utan att bli avbruten; allt som saknas
   // fångas istället av varningen vid "Avsluta pass".
   async function commitSetEdit(section: Section, set: LoggedSet) {
-    const parsed = parseSetDrafts(set);
+    const parsed = parseSetDrafts(set, unit);
     if (parsed === null) return;
-    if (isUnchanged(set, parsed)) return;
+    if (isUnchanged(set, parsed, unit)) return;
+
+    // Var raden oskriven innan? Avgör om vilotimern ska (åter)startas.
+    const wasFirstWrite = set.saved === null;
 
     try {
       await saveSet(
@@ -360,6 +398,9 @@ export function ActiveWorkoutScreen({
         parsed.reps,
         parsed.weightKg,
       );
+      if (wasFirstWrite && restTimer.enabled) {
+        setRestEndsAt(Date.now() + restTimer.seconds * 1000);
+      }
       setSections((prev) =>
         prev.map((s) =>
           s.workoutExerciseId === section.workoutExerciseId
@@ -371,7 +412,7 @@ export function ActiveWorkoutScreen({
                         ...existing,
                         saved: parsed,
                         repsDraft: String(parsed.reps),
-                        weightDraft: String(parsed.weightKg),
+                        weightDraft: weightInputValue(parsed.weightKg, unit),
                       }
                     : existing,
                 ),
@@ -404,12 +445,13 @@ export function ActiveWorkoutScreen({
   function describeSet(set: LoggedSet): string {
     const reps = set.repsDraft.trim();
     const weight = set.weightDraft.trim();
-    if (reps !== "" && weight !== "") return `${reps} reps × ${weight} kg`;
+    if (reps !== "" && weight !== "")
+      return `${reps} reps × ${weight} ${unitLabel(unit)}`;
     if (reps !== "") return `${reps} reps`;
-    if (weight !== "") return `${weight} kg`;
+    if (weight !== "") return `${weight} ${unitLabel(unit)}`;
     // Bara nåbart när raden är sparad - annars hade den räknats som tom
     // ovan och tagits bort utan dialog.
-    return `${set.saved!.reps} reps × ${set.saved!.weightKg} kg`;
+    return `${set.saved!.reps} reps × ${formatWeight(set.saved!.weightKg, unit)}`;
   }
 
   function confirmDeleteSet(section: Section, set: LoggedSet, label: number) {
@@ -567,7 +609,7 @@ export function ActiveWorkoutScreen({
       return {
         ...section,
         sets: section.sets.map((set, index) => {
-          const parsed = parseSetDrafts(set);
+          const parsed = parseSetDrafts(set, unit);
           if (parsed === null) {
             problems.push({
               setId: set.id,
@@ -575,13 +617,13 @@ export function ActiveWorkoutScreen({
             });
             return set;
           }
-          if (isUnchanged(set, parsed)) return set;
+          if (isUnchanged(set, parsed, unit)) return set;
           writes.push({ set, section, parsed });
           return {
             ...set,
             saved: parsed,
             repsDraft: String(parsed.reps),
-            weightDraft: String(parsed.weightKg),
+            weightDraft: weightInputValue(parsed.weightKg, unit),
           };
         }),
       };
@@ -851,6 +893,15 @@ export function ActiveWorkoutScreen({
         pendingMediaCount={pendingMediaCount}
         offlineLabel="Offline – loggas lokalt och synkas senare"
       />
+
+      {restEndsAt !== null && (
+        <RestTimerBar
+          endsAt={restEndsAt}
+          onAddTime={() => setRestEndsAt((prev) => (prev ?? Date.now()) + 30_000)}
+          onSkip={() => setRestEndsAt(null)}
+          onExpire={() => setRestEndsAt(null)}
+        />
+      )}
 
       <TouchableOpacity style={styles.finishButton} onPress={handleFinish}>
         <Text style={styles.buttonText}>Avsluta pass</Text>

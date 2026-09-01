@@ -83,6 +83,7 @@ export type Database = {
           home_gym: string | null
           id: string
           unit: string
+          unit_chosen_at: string | null
         }
         Insert: {
           avatar_path?: string | null
@@ -95,6 +96,7 @@ export type Database = {
           home_gym?: string | null
           id: string
           unit?: string
+          unit_chosen_at?: string | null
         }
         Update: {
           avatar_path?: string | null
@@ -107,6 +109,7 @@ export type Database = {
           home_gym?: string | null
           id?: string
           unit?: string
+          unit_chosen_at?: string | null
         }
         Relationships: []
       }

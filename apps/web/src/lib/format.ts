@@ -2,19 +2,19 @@
 // skärmar (ProfileScreen m.fl.) - samma avvägningar, se kommentarerna
 // där. formatDuration bor numera i packages/shared och re-exporteras här
 // så anropssidorna kan fortsätta importera från ../lib/format.
-export { formatDuration } from "@counter/shared";
-
-// Livstidsvolym hamnar i tiotusentals kg. Ton är läsbart, kg är det inte.
-export function formatTotalVolume(kg: number): string {
-  if (kg >= 10000) {
-    return `${(kg / 1000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} ton`;
-  }
-  return `${Math.round(kg).toLocaleString("sv-SE")} kg`;
-}
-
-export function formatVolume(kg: number): string {
-  return `${Math.round(kg).toLocaleString("sv-SE")} kg`;
-}
+// Enhetsmedveten formatering bor numera i packages/shared (delas med
+// mobilen). Re-exporteras här så anropssidorna kan fortsätta importera
+// från ../lib/format - de skickar nu ett unit-argument från useUnit().
+export {
+  formatDuration,
+  formatHeight,
+  formatTotalVolume,
+  formatVolume,
+  formatWeight,
+  formatWeightValue,
+  toDisplayWeight,
+  unitLabel,
+} from "@counter/shared";
 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("sv-SE", {

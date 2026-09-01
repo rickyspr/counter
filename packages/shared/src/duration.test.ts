@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { elapsedMinutes, formatDuration } from "./duration";
+import { elapsedMinutes, formatCountdown, formatDuration } from "./duration";
+
+describe("formatCountdown", () => {
+  it("formats zero", () => {
+    expect(formatCountdown(0)).toBe("0:00");
+  });
+
+  it("formats sub-minute values with a padded second", () => {
+    expect(formatCountdown(5)).toBe("0:05");
+    expect(formatCountdown(59)).toBe("0:59");
+  });
+
+  it("formats values over a minute", () => {
+    expect(formatCountdown(83)).toBe("1:23");
+    expect(formatCountdown(600)).toBe("10:00");
+  });
+
+  it("floors partial seconds", () => {
+    expect(formatCountdown(83.9)).toBe("1:23");
+  });
+
+  it("clamps negative and NaN to 0:00", () => {
+    expect(formatCountdown(-5)).toBe("0:00");
+    expect(formatCountdown(NaN)).toBe("0:00");
+  });
+});
 
 describe("formatDuration", () => {
   it("formats sub-hour durations as minutes", () => {

@@ -1,5 +1,7 @@
 import { toLocalDateOnly, toLocalTimeOnly } from "./local-time";
 import type { WorkoutHistoryEntry } from "./data/workout-history";
+import type { Unit } from "./types";
+import { kgToLbs } from "./units";
 
 // Ren, enhetstestad CSV-generering för träningsexporten. Ligger i
 // packages/shared så en framtida mobil-export eller ett JSON-format ärver
@@ -40,30 +42,38 @@ function formatDecimal(value: number): string {
   return s.replace(".", ",");
 }
 
-const COLUMNS: readonly {
+// Kolumnerna beror på enheten: vikt- och volymkolumnen byter både
+// rubrik (weight_kg -> weight_lbs) och värde (konverteras till lbs före
+// formateringen). Allt annat är enhetsoberoende. WorkoutExportRow bär
+// fortfarande kg - konverteringen sker bara på väg ut i filen.
+function columnsFor(unit: Unit): readonly {
   header: string;
   value: (row: WorkoutExportRow) => string;
-}[] = [
-  { header: "date", value: (r) => r.date },
-  { header: "start_time", value: (r) => r.startTime },
-  { header: "end_time", value: (r) => r.endTime },
-  {
-    header: "duration_min",
-    value: (r) =>
-      r.durationMinutes === null ? "" : String(r.durationMinutes),
-  },
-  { header: "workout_name", value: (r) => r.workoutName },
-  { header: "exercise_name", value: (r) => r.exerciseName },
-  { header: "muscle_group", value: (r) => r.muscleGroup },
-  { header: "set_nr", value: (r) => String(r.setNr) },
-  { header: "reps", value: (r) => String(r.reps) },
-  { header: "weight_kg", value: (r) => formatDecimal(r.weightKg) },
-  { header: "volume_kg", value: (r) => formatDecimal(r.volumeKg) },
-];
+}[] {
+  const suffix = unit === "lbs" ? "lbs" : "kg";
+  const toUnit = (kg: number) => (unit === "lbs" ? kgToLbs(kg) : kg);
+  return [
+    { header: "date", value: (r) => r.date },
+    { header: "start_time", value: (r) => r.startTime },
+    { header: "end_time", value: (r) => r.endTime },
+    {
+      header: "duration_min",
+      value: (r) =>
+        r.durationMinutes === null ? "" : String(r.durationMinutes),
+    },
+    { header: "workout_name", value: (r) => r.workoutName },
+    { header: "exercise_name", value: (r) => r.exerciseName },
+    { header: "muscle_group", value: (r) => r.muscleGroup },
+    { header: "set_nr", value: (r) => String(r.setNr) },
+    { header: "reps", value: (r) => String(r.reps) },
+    { header: `weight_${suffix}`, value: (r) => formatDecimal(toUnit(r.weightKg)) },
+    { header: `volume_${suffix}`, value: (r) => formatDecimal(toUnit(r.volumeKg)) },
+  ];
+}
 
-export const WORKOUT_CSV_HEADERS: readonly string[] = COLUMNS.map(
-  (c) => c.header,
-);
+export function workoutCsvHeaders(unit: Unit): readonly string[] {
+  return columnsFor(unit).map((c) => c.header);
+}
 
 // Citera BARA när fältet innehåller ", ;, CR eller LF; inre citattecken
 // dubbleras. Komma citeras INTE - teckenklassen är kopplad till
@@ -103,11 +113,17 @@ export function toExportRows(entry: WorkoutHistoryEntry): WorkoutExportRow[] {
 // BOM + rubrikrad + en rad per WorkoutExportRow. Alla fält genom
 // escapeCsvField, CSV_DELIMITER emellan, CSV_NEWLINE efter varje rad
 // (filen slutar med en radbrytning).
-export function serializeWorkoutCsv(rows: WorkoutExportRow[]): string {
-  const lines = [WORKOUT_CSV_HEADERS.map(escapeCsvField).join(CSV_DELIMITER)];
+export function serializeWorkoutCsv(
+  rows: WorkoutExportRow[],
+  unit: Unit,
+): string {
+  const columns = columnsFor(unit);
+  const lines = [
+    columns.map((c) => escapeCsvField(c.header)).join(CSV_DELIMITER),
+  ];
   for (const row of rows) {
     lines.push(
-      COLUMNS.map((c) => escapeCsvField(c.value(row))).join(CSV_DELIMITER),
+      columns.map((c) => escapeCsvField(c.value(row))).join(CSV_DELIMITER),
     );
   }
   return UTF8_BOM + lines.map((l) => l + CSV_NEWLINE).join("");

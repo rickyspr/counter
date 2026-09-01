@@ -1,5 +1,8 @@
 import {
+  formatWeightValue,
   pickWorkoutPraise,
+  toDisplayWeight,
+  unitLabel,
   type ExerciseProgressionPoint,
 } from "@counter/shared";
 import * as Haptics from "expo-haptics";
@@ -34,6 +37,7 @@ import {
 } from "../lib/finished-workout";
 import type { MediaItem } from "../lib/media-item";
 import { fetchExerciseTopWeightHistory } from "../lib/queries";
+import { useUnit } from "../lib/unit-context";
 import { colors, radii, shadows } from "../lib/theme";
 
 interface Props {
@@ -152,6 +156,7 @@ function formatDateTime(iso: string): string {
 // routern, precis som EditWorkoutScreen: flikraden ska vara dold.
 export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
   const insets = useSafeAreaInsets();
+  const { unit } = useUnit();
   const [celebrating, setCelebrating] = useState(true);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Övningar som slog sitt tidigare tyngsta lyft. Hämtas i bakgrunden;
@@ -240,8 +245,8 @@ export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
             <View style={styles.statGrid}>
               <StatCard
                 label="Volym"
-                value={totalVolumeKg}
-                suffix=" kg"
+                value={toDisplayWeight(totalVolumeKg, unit)}
+                suffix={` ${unitLabel(unit)}`}
                 index={0}
               />
               <StatCard label="Set" value={setCount} index={1} />
@@ -306,7 +311,7 @@ export function WorkoutSummaryScreen({ summary, onDone, greetingName }: Props) {
                 ) : (
                   <Text style={styles.setLine}>
                     {exercise.sets
-                      .map((s) => `${s.weightKg.toLocaleString("sv-SE")}×${s.reps}`)
+                      .map((s) => `${formatWeightValue(s.weightKg, unit)}×${s.reps}`)
                       .join(", ")}
                   </Text>
                 )}

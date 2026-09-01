@@ -1,4 +1,4 @@
-import { formatDuration } from "@counter/shared";
+import { formatDuration, formatTotalVolume } from "@counter/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,6 +30,7 @@ import { fetchFriendTrainingStats, type TrainingStats } from "../lib/profile";
 import { WORKOUT_HISTORY_PAGE_SIZE } from "../lib/queries";
 import { colors, radii, shadows } from "../lib/theme";
 import { useSyncStatus } from "../lib/use-sync-status";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   friend: Friend;
@@ -48,12 +49,6 @@ function formatMonthYear(iso: string): string {
   });
 }
 
-function formatTotalVolume(kg: number): string {
-  if (kg >= 10000) {
-    return `${(kg / 1000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} ton`;
-  }
-  return `${Math.round(kg).toLocaleString("sv-SE")} kg`;
-}
 
 // Nästan ProfileScreen (identitetskort → statistikkort → sidladdad
 // historik), men read-only och för en annan användare:
@@ -68,6 +63,7 @@ function formatTotalVolume(kg: number): string {
 export function FriendProfileScreen({ friend, currentUserId, onClose }: Props) {
   const { online } = useSyncStatus();
   const insets = useSafeAreaInsets();
+  const { unit } = useUnit();
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = windowWidth - LIST_PADDING * 2 - CARD_BORDER * 2;
 
@@ -226,7 +222,7 @@ export function FriendProfileScreen({ friend, currentUserId, onClose }: Props) {
             <Stat label="Pass" value={String(stats.workoutCount)} />
             <Stat
               label="Total volym"
-              value={formatTotalVolume(stats.totalVolumeKg)}
+              value={formatTotalVolume(stats.totalVolumeKg, unit)}
             />
             <Stat label="Total tid" value={formatDuration(stats.totalMinutes)} />
           </View>

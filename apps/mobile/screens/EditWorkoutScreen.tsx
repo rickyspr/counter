@@ -1,4 +1,8 @@
-import { WORKOUT_NAME_MAX_LENGTH } from "@counter/shared";
+import {
+  formatWeight,
+  weightInputValue,
+  WORKOUT_NAME_MAX_LENGTH,
+} from "@counter/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -52,6 +56,7 @@ import {
   parseSetDrafts,
   type LoggedSet,
 } from "../lib/set-parsing";
+import { useUnit } from "../lib/unit-context";
 import { useSyncStatus } from "../lib/use-sync-status";
 
 interface Props {
@@ -101,6 +106,7 @@ interface EditMedia extends WorkoutMediaRow {
 export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
+  const { unit } = useUnit();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -195,7 +201,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
             id: set.id,
             setNr: set.setNr,
             repsDraft: String(set.reps),
-            weightDraft: String(set.weightKg),
+            weightDraft: weightInputValue(set.weightKg, unit),
             saved: { reps: set.reps, weightKg: set.weightKg },
           })),
         })),
@@ -205,7 +211,8 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [userId, workoutId]);
+    // `unit` med: raderna renderas ur sina kg-värden i vald enhet.
+  }, [userId, workoutId, unit]);
 
   useEffect(() => {
     void load();
@@ -303,12 +310,12 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
   }
 
   // Ett halvifyllt fält gör ingenting alls vid blur - man ska kunna
-  // hoppa mellan kg och reps utan att bli avbruten. Det som saknas
+  // hoppa mellan vikt och reps utan att bli avbruten. Det som saknas
   // fångas av valideringen i handleDone.
   async function commitSetEdit(section: Section, set: LoggedSet) {
-    const parsed = parseSetDrafts(set);
+    const parsed = parseSetDrafts(set, unit);
     if (parsed === null) return;
-    if (isUnchanged(set, parsed)) return;
+    if (isUnchanged(set, parsed, unit)) return;
 
     try {
       await saveSet(
@@ -329,7 +336,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
                         ...existing,
                         saved: parsed,
                         repsDraft: String(parsed.reps),
-                        weightDraft: String(parsed.weightKg),
+                        weightDraft: weightInputValue(parsed.weightKg, unit),
                       }
                     : existing,
                 ),
@@ -367,7 +374,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
 
     Alert.alert(
       "Ta bort set?",
-      `Set ${label} (${set.saved.reps} reps × ${set.saved.weightKg} kg) tas bort. Det går inte att ångra.`,
+      `Set ${label} (${set.saved.reps} reps × ${formatWeight(set.saved.weightKg, unit)}) tas bort. Det går inte att ångra.`,
       [
         { text: "Avbryt", style: "cancel" },
         {
@@ -567,7 +574,7 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
       return {
         ...section,
         sets: section.sets.map((set, index) => {
-          const parsed = parseSetDrafts(set);
+          const parsed = parseSetDrafts(set, unit);
           if (parsed === null) {
             problems.push({
               setId: set.id,
@@ -575,13 +582,13 @@ export function EditWorkoutScreen({ userId, workoutId, onClose }: Props) {
             });
             return set;
           }
-          if (isUnchanged(set, parsed)) return set;
+          if (isUnchanged(set, parsed, unit)) return set;
           writes.push({ set, section, parsed });
           return {
             ...set,
             saved: parsed,
             repsDraft: String(parsed.reps),
-            weightDraft: String(parsed.weightKg),
+            weightDraft: weightInputValue(parsed.weightKg, unit),
           };
         }),
       };

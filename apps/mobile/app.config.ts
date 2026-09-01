@@ -34,6 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-web-browser",
+    "expo-localization",
     "@react-native-community/datetimepicker",
     // Behörighetstexterna är det användaren faktiskt läser i iOS-dialogen,
     // alltså UI-språk: svenska (se CLAUDE.md). $(PRODUCT_NAME) fylls i av

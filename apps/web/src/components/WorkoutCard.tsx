@@ -1,5 +1,6 @@
 import type { MediaItem, WorkoutSummary } from "@counter/shared";
 import { formatDate, formatVolume } from "../lib/format";
+import { useUnit } from "../lib/unit-context";
 import { Avatar } from "./Avatar";
 import { MediaCarousel } from "./MediaCarousel";
 
@@ -43,6 +44,7 @@ export function WorkoutCard({
   author,
   kudos,
 }: Props) {
+  const unit = useUnit();
   const exerciseNames = [...new Set(entry.exercises.map((e) => e.name))];
 
   return (
@@ -68,7 +70,7 @@ export function WorkoutCard({
             {entry.name ?? formatDate(entry.startedAt)}
           </span>
           <span className="workout-card-volume">
-            {formatVolume(entry.summary.totalVolumeKg)}
+            {formatVolume(entry.summary.totalVolumeKg, unit)}
           </span>
         </div>
         {entry.name !== null && (

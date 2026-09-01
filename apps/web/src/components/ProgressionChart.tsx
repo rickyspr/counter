@@ -1,5 +1,7 @@
 import type { ExerciseProgressionPoint } from "@counter/shared";
 import { useState, type PointerEvent } from "react";
+import { formatWeightValue, toDisplayWeight, unitLabel } from "../lib/format";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   points: ExerciseProgressionPoint[];
@@ -25,15 +27,21 @@ function niceTicks(min: number, max: number, count = 4): number[] {
 
 export function ProgressionChart({ points }: Props) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const unit = useUnit();
 
   if (points.length === 0) {
     return <p className="status">Inga pass med den här övningen ännu.</p>;
   }
 
+  // e1RM i betraktarens enhet - all geometri och alla värden nedan
+  // räknar på det konverterade talet.
+  const e1rmOf = (p: ExerciseProgressionPoint) =>
+    toDisplayWeight(p.bestE1rmKg, unit);
+
   const plotWidth = WIDTH - PADDING.left - PADDING.right;
   const plotHeight = HEIGHT - PADDING.top - PADDING.bottom;
 
-  const values = points.map((p) => p.bestE1rmKg);
+  const values = points.map(e1rmOf);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const valueRange = maxValue - minValue || 1;
@@ -52,7 +60,7 @@ export function ProgressionChart({ points }: Props) {
   }
 
   const linePath = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(p.bestE1rmKg)}`)
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(e1rmOf(p))}`)
     .join(" ");
 
   const yTicks = niceTicks(yMin, yMax, 4);
@@ -100,7 +108,7 @@ export function ProgressionChart({ points }: Props) {
           <circle
             key={p.workoutStartedAt}
             cx={xFor(i)}
-            cy={yFor(p.bestE1rmKg)}
+            cy={yFor(e1rmOf(p))}
             r={i === points.length - 1 || i === hoverIndex ? 5 : 4}
             className="chart-dot"
           />
@@ -150,10 +158,12 @@ export function ProgressionChart({ points }: Props) {
 
       {hovered && (
         <div className="chart-tooltip">
-          <strong>{hovered.bestE1rmKg.toFixed(1)} kg e1RM</strong>
+          <strong>
+            {formatWeightValue(hovered.bestE1rmKg, unit)} {unitLabel(unit)} e1RM
+          </strong>
           <span>
             {formatDate(hovered.workoutStartedAt)} · tyngsta set{" "}
-            {hovered.topWeightKg} kg
+            {formatWeightValue(hovered.topWeightKg, unit)} {unitLabel(unit)}
           </span>
         </div>
       )}
@@ -164,16 +174,16 @@ export function ProgressionChart({ points }: Props) {
           <thead>
             <tr>
               <th>Datum</th>
-              <th>Tyngsta set (kg)</th>
-              <th>e1RM (kg)</th>
+              <th>Tyngsta set ({unitLabel(unit)})</th>
+              <th>e1RM ({unitLabel(unit)})</th>
             </tr>
           </thead>
           <tbody>
             {points.map((p) => (
               <tr key={p.workoutStartedAt}>
                 <td>{formatDate(p.workoutStartedAt)}</td>
-                <td>{p.topWeightKg}</td>
-                <td>{p.bestE1rmKg.toFixed(1)}</td>
+                <td>{formatWeightValue(p.topWeightKg, unit)}</td>
+                <td>{formatWeightValue(p.bestE1rmKg, unit)}</td>
               </tr>
             ))}
           </tbody>

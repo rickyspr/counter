@@ -1,6 +1,7 @@
 import type { WeeklyTrainingPoint } from "@counter/shared";
 import { useState } from "react";
-import { formatVolume, formatWeek } from "../lib/format";
+import { formatVolume, formatWeek, toDisplayWeight } from "../lib/format";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   points: WeeklyTrainingPoint[];
@@ -17,6 +18,7 @@ const PADDING = { top: 16, right: 16, bottom: 28, left: 48 };
 // hover, and a table fallback - per the dataviz procedure.
 export function WeeklyVolumeChart({ points, metric }: Props) {
   const [hover, setHover] = useState<number | null>(null);
+  const unit = useUnit();
 
   if (points.length === 0) {
     return <p className="status">Inga avslutade pass ännu.</p>;
@@ -28,7 +30,7 @@ export function WeeklyVolumeChart({ points, metric }: Props) {
   const valueOf = (p: WeeklyTrainingPoint) =>
     metric === "volume" ? p.volumeKg : p.workoutCount;
   const label = (v: number) =>
-    metric === "volume" ? formatVolume(v) : `${v} pass`;
+    metric === "volume" ? formatVolume(v, unit) : `${v} pass`;
 
   const maxValue = Math.max(...points.map(valueOf), 1);
   const step = plotWidth / points.length;
@@ -65,8 +67,10 @@ export function WeeklyVolumeChart({ points, metric }: Props) {
               textAnchor="end"
               dominantBaseline="middle"
             >
-              {metric === "volume" && tick >= 1000
-                ? `${Math.round(tick / 1000)}k`
+              {metric === "volume"
+                ? toDisplayWeight(tick, unit) >= 1000
+                  ? `${Math.round(toDisplayWeight(tick, unit) / 1000)}k`
+                  : Math.round(toDisplayWeight(tick, unit))
                 : tick}
             </text>
           </g>

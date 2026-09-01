@@ -7,8 +7,16 @@ import {
   MAX_HEIGHT_CM,
   MIN_HEIGHT_CM,
   calculateAge,
+  cmToFeetInches,
+  feetInchesToCm,
+  formatHeight,
+  formatWeight,
   parseDateOnly,
+  parseWeightInput,
   toDateOnlyString,
+  unitLabel,
+  weightInputValue,
+  type Unit,
 } from "@counter/shared";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -43,6 +51,7 @@ import {
 // "Swedish decimal string to number", and the comma is the whole point.
 // The same user who types 82,5 into a set types it here.
 import { parseAmount } from "../lib/set-parsing";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   session: Session;
@@ -72,13 +81,21 @@ interface FieldErrors {
 // dirty check compares strings in both directions. These two functions
 // are what make that comparison honest: the initial draft for 82.5 kg
 // has to be exactly what the user would have typed.
-function weightDraftFor(value: number | null): string {
+function weightDraftFor(value: number | null, unit: Unit): string {
   if (value === null) return "";
-  return String(value).replace(".", ",");
+  return weightInputValue(value, unit);
 }
 
-function numberDraftFor(value: number | null): string {
-  return value === null ? "" : String(value);
+// Höjden matas in som cm i kg-läge och som fot + tum i lbs-läge. Alla tre
+// drafts härleds ur samma lagrade cm-värde, så att `load()` och
+// `isDirty()` jämför äpplen med äpplen.
+function heightDraftsFor(
+  cm: number | null,
+  _unit: Unit,
+): { cm: string; feet: string; inches: string } {
+  if (cm === null) return { cm: "", feet: "", inches: "" };
+  const { feet, inches } = cmToFeetInches(cm);
+  return { cm: String(cm), feet: String(feet), inches: String(inches) };
 }
 
 // A starting point for the picker when no birth date has been set. It
@@ -92,6 +109,9 @@ function defaultBirthDate(): Date {
 export function ProfileSettingsScreen({ session, onClose }: Props) {
   const userId = session.user.id;
   const insets = useSafeAreaInsets();
+  // Låst under skärmens livstid: att byta enhet sker på Inställningar,
+  // vilket monterar om den här skärmen på vägen tillbaka.
+  const { unit } = useUnit();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -102,6 +122,10 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
   const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [weightDraft, setWeightDraft] = useState("");
   const [heightDraft, setHeightDraft] = useState("");
+  // Bara använda i lbs-läge; separata drafts så ett halvifyllt fält inte
+  // slår över i det andra.
+  const [feetDraft, setFeetDraft] = useState("");
+  const [inchesDraft, setInchesDraft] = useState("");
   const [bioDraft, setBioDraft] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -138,8 +162,13 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
       setNameDraft(profile.displayName ?? "");
       setGymDraft(profile.homeGym ?? "");
       setBirthDate(profile.birthDate ? parseDateOnly(profile.birthDate) : null);
-      setWeightDraft(weightDraftFor(profile.bodyWeightKg));
-      setHeightDraft(numberDraftFor(profile.heightCm));
+      setWeightDraft(weightDraftFor(profile.bodyWeightKg, unit));
+      {
+        const h = heightDraftsFor(profile.heightCm, unit);
+        setHeightDraft(h.cm);
+        setFeetDraft(h.feet);
+        setInchesDraft(h.inches);
+      }
       setBioDraft(profile.bio ?? "");
       setAvatarAction({ kind: "keep" });
 
@@ -153,7 +182,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, unit]);
 
   useEffect(() => {
     void load();
@@ -163,13 +192,19 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
     if (avatarAction.kind !== "keep") return true;
     const before = initial.current;
     if (!before) return false;
+    const beforeHeight = heightDraftsFor(before.heightCm, unit);
+    const heightChanged =
+      unit === "lbs"
+        ? feetDraft.trim() !== beforeHeight.feet ||
+          inchesDraft.trim() !== beforeHeight.inches
+        : heightDraft.trim() !== beforeHeight.cm;
     return (
       nameDraft.trim() !== (before.displayName ?? "") ||
       gymDraft.trim() !== (before.homeGym ?? "") ||
       (birthDate === null ? "" : toDateOnlyString(birthDate)) !==
         (before.birthDate ?? "") ||
-      weightDraft.trim() !== weightDraftFor(before.bodyWeightKg) ||
-      heightDraft.trim() !== numberDraftFor(before.heightCm) ||
+      weightDraft.trim() !== weightDraftFor(before.bodyWeightKg, unit) ||
+      heightChanged ||
       bioDraft.trim() !== (before.bio ?? "")
     );
   }
@@ -225,30 +260,65 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
     let bodyWeightKg: number | null = null;
     const weight = weightDraft.trim();
     if (weight !== "") {
-      const parsed = parseAmount(weight);
-      if (parsed === null || parsed <= 0 || parsed >= MAX_BODY_WEIGHT_KG) {
-        next.bodyWeight = `Ange en vikt mellan 0 och ${MAX_BODY_WEIGHT_KG} kg.`;
+      const amount = parseAmount(weight); // i inmatad enhet
+      // One decimal is what a bathroom scale shows. Rounding here in the
+      // entered unit rather than in the column keeps 82,55 from becoming
+      // a number the user never entered and cannot see.
+      const roundedDisplay =
+        amount === null ? null : Math.round(amount * 10) / 10;
+      const kg =
+        roundedDisplay === null
+          ? null
+          : parseWeightInput(String(roundedDisplay), unit);
+      if (kg === null || kg <= 0 || kg >= MAX_BODY_WEIGHT_KG) {
+        next.bodyWeight = `Ange en vikt mellan 0 och ${formatWeight(MAX_BODY_WEIGHT_KG, unit)}.`;
       } else {
-        // One decimal is what a bathroom scale shows. Rounding here
-        // rather than in the column keeps 82,55 from becoming a number
-        // the user never entered and cannot see.
-        bodyWeightKg = Math.round(parsed * 10) / 10;
+        bodyWeightKg = kg;
       }
     }
 
     let heightCm: number | null = null;
-    const height = heightDraft.trim();
-    if (height !== "") {
-      const parsed = parseAmount(height);
-      if (
-        parsed === null ||
-        !Number.isInteger(parsed) ||
-        parsed < MIN_HEIGHT_CM ||
-        parsed > MAX_HEIGHT_CM
-      ) {
-        next.height = `Ange en längd i hela cm, mellan ${MIN_HEIGHT_CM} och ${MAX_HEIGHT_CM}.`;
+    const heightRange = `Ange en längd mellan ${formatHeight(MIN_HEIGHT_CM, unit)} och ${formatHeight(MAX_HEIGHT_CM, unit)}.`;
+    if (unit === "lbs") {
+      const feetStr = feetDraft.trim();
+      const inchesStr = inchesDraft.trim();
+      if (feetStr === "" && inchesStr === "") {
+        // Ingen längd angiven.
+      } else if (feetStr === "") {
+        next.height = "Ange längd i fot och tum.";
       } else {
-        heightCm = parsed;
+        const feet = parseAmount(feetStr);
+        const inches = inchesStr === "" ? 0 : parseAmount(inchesStr);
+        if (
+          feet === null ||
+          !Number.isInteger(feet) ||
+          inches === null ||
+          !Number.isInteger(inches)
+        ) {
+          next.height = heightRange;
+        } else {
+          const cm = Math.round(feetInchesToCm(feet, inches));
+          if (cm < MIN_HEIGHT_CM || cm > MAX_HEIGHT_CM) {
+            next.height = heightRange;
+          } else {
+            heightCm = cm;
+          }
+        }
+      }
+    } else {
+      const height = heightDraft.trim();
+      if (height !== "") {
+        const parsed = parseAmount(height);
+        if (
+          parsed === null ||
+          !Number.isInteger(parsed) ||
+          parsed < MIN_HEIGHT_CM ||
+          parsed > MAX_HEIGHT_CM
+        ) {
+          next.height = `Ange en längd i hela cm, mellan ${MIN_HEIGHT_CM} och ${MAX_HEIGHT_CM}.`;
+        } else {
+          heightCm = parsed;
+        }
       }
     }
 
@@ -451,7 +521,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
             <Text style={styles.fieldError}>{errors.birthDate}</Text>
           )}
 
-          <Text style={styles.label}>Vikt (kg)</Text>
+          <Text style={styles.label}>Vikt ({unitLabel(unit)})</Text>
           <TextInput
             style={styles.input}
             value={weightDraft}
@@ -459,7 +529,7 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
               clearError("bodyWeight");
               setWeightDraft(text);
             }}
-            placeholder="82,5"
+            placeholder={unit === "kg" ? "82,5" : "180"}
             placeholderTextColor={colors.textFaint}
             keyboardType="decimal-pad"
             returnKeyType="done"
@@ -468,19 +538,53 @@ export function ProfileSettingsScreen({ session, onClose }: Props) {
             <Text style={styles.fieldError}>{errors.bodyWeight}</Text>
           )}
 
-          <Text style={styles.label}>Längd (cm)</Text>
-          <TextInput
-            style={styles.input}
-            value={heightDraft}
-            onChangeText={(text) => {
-              clearError("height");
-              setHeightDraft(text);
-            }}
-            placeholder="180"
-            placeholderTextColor={colors.textFaint}
-            keyboardType="number-pad"
-            returnKeyType="done"
-          />
+          {unit === "lbs" ? (
+            <>
+              <Text style={styles.label}>Längd</Text>
+              <View style={styles.heightRow}>
+                <TextInput
+                  style={[styles.input, styles.heightField]}
+                  value={feetDraft}
+                  onChangeText={(text) => {
+                    clearError("height");
+                    setFeetDraft(text);
+                  }}
+                  placeholder="Fot"
+                  placeholderTextColor={colors.textFaint}
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                />
+                <TextInput
+                  style={[styles.input, styles.heightField]}
+                  value={inchesDraft}
+                  onChangeText={(text) => {
+                    clearError("height");
+                    setInchesDraft(text);
+                  }}
+                  placeholder="Tum"
+                  placeholderTextColor={colors.textFaint}
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>Längd (cm)</Text>
+              <TextInput
+                style={styles.input}
+                value={heightDraft}
+                onChangeText={(text) => {
+                  clearError("height");
+                  setHeightDraft(text);
+                }}
+                placeholder="180"
+                placeholderTextColor={colors.textFaint}
+                keyboardType="number-pad"
+                returnKeyType="done"
+              />
+            </>
+          )}
           {errors.height && <Text style={styles.fieldError}>{errors.height}</Text>}
 
           <Text style={styles.label}>Om mig</Text>
@@ -580,6 +684,13 @@ const styles = StyleSheet.create({
   },
   multiline: {
     minHeight: 88,
+  },
+  heightRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  heightField: {
+    flex: 1,
   },
   hintText: {
     color: colors.textMuted,

@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { weightInputValue } from "@counter/shared";
 import type { PreviousSet } from "../lib/queries";
 import type { LoggedSet } from "../lib/set-parsing";
 import { colors, radii, shadows } from "../lib/theme";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   title: string;
@@ -56,6 +58,7 @@ export function ExerciseSection({
   onAddSet,
   onRemoveExercise,
 }: Props) {
+  const { unit } = useUnit();
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -68,7 +71,9 @@ export function ExerciseSection({
       {sets.length > 0 && (
         <View style={styles.setRow}>
           <Text style={styles.setLabel} />
-          <Text style={[styles.columnHeader, styles.columnHeaderCell]}>Kg</Text>
+          <Text style={[styles.columnHeader, styles.columnHeaderCell]}>
+            {unit === "kg" ? "Kg" : "Lbs"}
+          </Text>
           <Text style={[styles.columnHeader, styles.columnHeaderCell]}>
             Reps
           </Text>
@@ -95,7 +100,9 @@ export function ExerciseSection({
               keyboardType="numeric"
               autoFocus={s.id === pendingFocusId}
               onFocus={onFocusHandled}
-              placeholder={previous ? String(previous.weightKg) : ""}
+              placeholder={
+                previous ? weightInputValue(previous.weightKg, unit) : ""
+              }
               placeholderTextColor={colors.textFaint}
               value={s.weightDraft}
               onChangeText={(text) => onChangeDraft(s.id, "weightDraft", text)}

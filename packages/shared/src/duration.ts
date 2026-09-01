@@ -17,6 +17,16 @@ export function formatDuration(minutes: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
+// Nedräkning för vilotimern: "M:SS", golvad. Negativt eller NaN -> "0:00"
+// (timern har gått ut / aldrig startat).
+export function formatCountdown(seconds: number): string {
+  if (Number.isNaN(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
 // Hela minuter mellan startedAt och now (default nu), golvade och klampade
 // till 0 vid negativt värde eller NaN. now är injicerbar för test.
 export function elapsedMinutes(startedAt: string | Date, now: Date = new Date()): number {

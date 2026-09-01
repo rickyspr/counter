@@ -7,6 +7,7 @@ export * from "./workout-name";
 export * from "./motivation";
 export * from "./local-time";
 export * from "./duration";
+export * from "./units";
 export * from "./workout-csv";
 export * from "./data/media-urls";
 export * from "./data/workout-history";
