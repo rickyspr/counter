@@ -1,5 +1,6 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";
+import type { Unit } from "../types";
 
 type Client = SupabaseClient<Database>;
 
@@ -14,6 +15,10 @@ export interface UserProfile {
   bodyWeightKg: number | null;
   heightCm: number | null;
   bio: string | null;
+  unit: Unit;
+  // null tills användaren tagit ställning - då sätter klienten
+  // regionsdefaulten en gång. Se 20260901090000_profile_unit_chosen_at.sql.
+  unitChosenAt: string | null;
   createdAt: string | null;
 }
 
@@ -25,6 +30,8 @@ export const EMPTY_PROFILE: UserProfile = {
   bodyWeightKg: null,
   heightCm: null,
   bio: null,
+  unit: "kg",
+  unitChosenAt: null,
   createdAt: null,
 };
 
@@ -35,7 +42,7 @@ export async function fetchProfile(
   const { data, error } = await client
     .from("profiles")
     .select(
-      "display_name, avatar_path, home_gym, birth_date, body_weight_kg, height_cm, bio, created_at",
+      "display_name, avatar_path, home_gym, birth_date, body_weight_kg, height_cm, bio, unit, unit_chosen_at, created_at",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -57,6 +64,8 @@ export async function fetchProfile(
     bodyWeightKg: data.body_weight_kg == null ? null : Number(data.body_weight_kg),
     heightCm: data.height_cm,
     bio: data.bio,
+    unit: data.unit === "lbs" ? "lbs" : "kg",
+    unitChosenAt: data.unit_chosen_at,
     createdAt: data.created_at,
   };
 }

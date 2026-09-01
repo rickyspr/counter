@@ -2,6 +2,7 @@ import {
   fetchProfile as sharedFetchProfile,
   fetchFriendTrainingStats as sharedFetchFriendStats,
   fetchTrainingStats as sharedFetchStats,
+  type Unit,
   type UserProfile,
 } from "@counter/shared";
 import { supabase } from "./supabase";
@@ -19,9 +20,13 @@ import { supabase } from "./supabase";
 
 export { fallbackDisplayName, type UserProfile, type TrainingStats } from "@counter/shared";
 
-// What the settings screen may write - everything in UserProfile except
-// createdAt, which belongs to the row rather than to the user.
-export type ProfileEdits = Omit<UserProfile, "createdAt">;
+// What the profile-details screen may write - everything in UserProfile
+// except createdAt (belongs to the row) and unit/unitChosenAt, which the
+// Settings screen owns through updateUnitPreference below.
+export type ProfileEdits = Omit<
+  UserProfile,
+  "createdAt" | "unit" | "unitChosenAt"
+>;
 
 export const fetchProfile = (userId: string) =>
   sharedFetchProfile(supabase, userId);
@@ -53,6 +58,23 @@ export async function updateProfile(
     body_weight_kg: edits.bodyWeightKg,
     height_cm: edits.heightCm,
     bio: edits.bio,
+  });
+  if (error) throw error;
+}
+
+// The unit preference is written on its own, from the Settings screen -
+// a partial upsert cannot null the rest of the profile, and it must not.
+// `upsert` (not `update`) for accounts predating the
+// on_auth_user_created trigger. Outside the sync queue for the same
+// reason as updateProfile: a one-off online write with no ordering.
+export async function updateUnitPreference(
+  userId: string,
+  unit: Unit,
+): Promise<void> {
+  const { error } = await supabase.from("profiles").upsert({
+    id: userId,
+    unit,
+    unit_chosen_at: new Date().toISOString(),
   });
   if (error) throw error;
 }

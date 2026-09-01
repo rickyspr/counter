@@ -12,13 +12,22 @@ import { useEffect, useState } from "react";
 import { Avatar } from "../components/Avatar";
 import { WorkoutExportDialog } from "../components/WorkoutExportDialog";
 import { useAuth } from "../lib/auth-context";
-import { formatDuration, formatMonthYear, formatTotalVolume } from "../lib/format";
+import {
+  formatDuration,
+  formatHeight,
+  formatMonthYear,
+  formatTotalVolume,
+  formatWeight,
+  unitLabel,
+} from "../lib/format";
+import { useUnit } from "../lib/unit-context";
 import { signAvatarUrl } from "../lib/media-urls";
 import { supabase } from "../lib/supabase";
 
 export function ProfilePage() {
   const { session } = useAuth();
   const userId = session!.user.id;
+  const unit = useUnit();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -103,11 +112,11 @@ export function ProfilePage() {
             {profile?.bodyWeightKg != null && (
               <Detail
                 label="Vikt"
-                value={`${profile.bodyWeightKg.toLocaleString("sv-SE")} kg`}
+                value={formatWeight(profile.bodyWeightKg, unit)}
               />
             )}
             {profile?.heightCm != null && (
-              <Detail label="Längd" value={`${profile.heightCm} cm`} />
+              <Detail label="Längd" value={formatHeight(profile.heightCm, unit)} />
             )}
             {profile?.bio && <p className="bio">{profile.bio}</p>}
           </section>
@@ -119,7 +128,7 @@ export function ProfilePage() {
                 <Stat label="Pass" value={String(stats.workoutCount)} />
                 <Stat
                   label="Total volym"
-                  value={formatTotalVolume(stats.totalVolumeKg)}
+                  value={formatTotalVolume(stats.totalVolumeKg, unit)}
                 />
                 <Stat
                   label="Total tid"
@@ -135,7 +144,8 @@ export function ProfilePage() {
             <section className="card">
               <h2>Exportera träningsdata</h2>
               <p className="text-muted">
-                Ladda ner din historik som CSV – en rad per set, vikter i kg.
+                Ladda ner din historik som CSV – en rad per set, vikter i{" "}
+                {unitLabel(unit)}.
               </p>
               <button
                 type="button"
@@ -148,7 +158,7 @@ export function ProfilePage() {
           )}
 
           <p className="text-muted">
-            Profilen redigeras i mobilappen.
+            Profilen och enhetsvalet (kg/lbs) ändras i mobilappen.
           </p>
         </>
       )}

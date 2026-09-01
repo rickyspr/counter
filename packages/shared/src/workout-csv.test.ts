@@ -50,28 +50,28 @@ function entry(overrides: Partial<WorkoutHistoryEntry> = {}): WorkoutHistoryEntr
 
 describe("serializeWorkoutCsv", () => {
   it("1. has the exact header row", () => {
-    const csv = serializeWorkoutCsv([]);
+    const csv = serializeWorkoutCsv([], "kg");
     expect(csv.slice(UTF8_BOM.length).split("\r\n")[0]).toBe(HEADER);
   });
 
   it("2. starts with the BOM immediately followed by the header", () => {
-    const csv = serializeWorkoutCsv([]);
+    const csv = serializeWorkoutCsv([], "kg");
     expect(csv.startsWith(UTF8_BOM + HEADER)).toBe(true);
   });
 
   it("3. terminates every row with CRLF, including the last", () => {
-    const csv = serializeWorkoutCsv([row()]);
+    const csv = serializeWorkoutCsv([row()], "kg");
     expect(csv.endsWith("\r\n")).toBe(true);
     expect(csv.slice(UTF8_BOM.length).split("\r\n")).toHaveLength(3);
   });
 
   it("4. empty row list -> BOM + header + CRLF and nothing more", () => {
-    expect(serializeWorkoutCsv([])).toBe(UTF8_BOM + HEADER + "\r\n");
+    expect(serializeWorkoutCsv([], "kg")).toBe(UTF8_BOM + HEADER + "\r\n");
   });
 
   it("11. formats decimals with a comma", () => {
     const line = (weightKg: number) =>
-      serializeWorkoutCsv([row({ weightKg, volumeKg: 0 })])
+      serializeWorkoutCsv([row({ weightKg, volumeKg: 0 })], "kg")
         .split("\r\n")[1]!
         .split(";")[9];
     expect(line(22.5)).toBe("22,5");
@@ -88,19 +88,36 @@ describe("serializeWorkoutCsv", () => {
         ],
       }),
     );
-    const volume = serializeWorkoutCsv(rows).split("\r\n")[1]!.split(";")[10];
+    const volume = serializeWorkoutCsv(rows, "kg").split("\r\n")[1]!.split(";")[10];
     expect(volume).toBe("82,8");
   });
 
   it("13. null duration -> empty field", () => {
-    const field = serializeWorkoutCsv([row({ durationMinutes: null })])
+    const field = serializeWorkoutCsv([row({ durationMinutes: null })], "kg")
       .split("\r\n")[1]!
       .split(";")[3];
     expect(field).toBe("");
   });
 
+  it("23. lbs mode renames the weight/volume headers", () => {
+    const header = serializeWorkoutCsv([], "lbs")
+      .slice(UTF8_BOM.length)
+      .split("\r\n")[0]!;
+    expect(header).toContain("weight_lbs;volume_lbs");
+  });
+
+  it("24. lbs mode converts the weight value", () => {
+    const weight = serializeWorkoutCsv(
+      [row({ weightKg: 100, volumeKg: 0 })],
+      "lbs",
+    )
+      .split("\r\n")[1]!
+      .split(";")[9];
+    expect(weight).toBe("220,462");
+  });
+
   it("22. a semicolon in the workout name survives serialization", () => {
-    const line = serializeWorkoutCsv([row({ workoutName: "Ben; och rygg" })]).split(
+    const line = serializeWorkoutCsv([row({ workoutName: "Ben; och rygg" })], "kg").split(
       "\r\n",
     )[1]!;
     expect(line).toContain('"Ben; och rygg"');

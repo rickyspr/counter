@@ -19,6 +19,7 @@ import { WorkoutCard } from "../components/WorkoutCard";
 import { WorkoutDetailModal } from "../components/WorkoutDetailModal";
 import { useAuth } from "../lib/auth-context";
 import { formatDuration, formatMonthYear, formatTotalVolume } from "../lib/format";
+import { useUnit } from "../lib/unit-context";
 import { useMediaSigning } from "../lib/media-signing";
 import { signAvatarUrl } from "../lib/media-urls";
 import { supabase } from "../lib/supabase";
@@ -26,6 +27,7 @@ import { supabase } from "../lib/supabase";
 export function FriendProfilePage() {
   const { friendId = "" } = useParams();
   const { session } = useAuth();
+  const unit = useUnit();
   const userId = session!.user.id;
   const { signWorkouts, toMediaItems } = useMediaSigning();
 
@@ -178,7 +180,7 @@ export function FriendProfilePage() {
                   <Stat label="Pass" value={String(stats.workoutCount)} />
                   <Stat
                     label="Total volym"
-                    value={formatTotalVolume(stats.totalVolumeKg)}
+                    value={formatTotalVolume(stats.totalVolumeKg, unit)}
                   />
                   <Stat
                     label="Total tid"

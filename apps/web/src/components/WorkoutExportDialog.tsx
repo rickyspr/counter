@@ -9,7 +9,9 @@ import {
 } from "@counter/shared";
 import { useEffect, useRef, useState } from "react";
 import { downloadTextFile } from "../lib/download";
+import { unitLabel } from "../lib/format";
 import { supabase } from "../lib/supabase";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   userId: string;
@@ -20,6 +22,7 @@ interface Props {
 // Klientsidig CSV-export av den egna historiken. Läser bara - webben är
 // read-only. Perioden förväljs till hela historiken.
 export function WorkoutExportDialog({ userId, defaultFromDate, onClose }: Props) {
+  const unit = useUnit();
   const [fromDate, setFromDate] = useState(defaultFromDate);
   const [toDate, setToDate] = useState(() => {
     const now = new Date();
@@ -93,7 +96,7 @@ export function WorkoutExportDialog({ userId, defaultFromDate, onClose }: Props)
 
       downloadTextFile(
         workoutCsvFileName(fromDate, toDate),
-        serializeWorkoutCsv(rows),
+        serializeWorkoutCsv(rows, unit),
         "text/csv;charset=utf-8",
       );
       setStatus("done");
@@ -122,7 +125,9 @@ export function WorkoutExportDialog({ userId, defaultFromDate, onClose }: Props)
         </div>
 
         <div className="dialog-body">
-          <p className="text-muted">En rad per set. Vikter alltid i kg.</p>
+          <p className="text-muted">
+            En rad per set. Vikter i {unitLabel(unit)}.
+          </p>
 
           <div className="export-range">
             <label className="export-field">

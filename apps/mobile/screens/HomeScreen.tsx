@@ -1,4 +1,5 @@
 import {
+  formatVolume,
   pickHomeGreeting,
   summarizeWorkout,
   type WorkoutSummary,
@@ -21,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radii, shadows } from "../lib/theme";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
 import { useSyncStatus } from "../lib/use-sync-status";
+import { useUnit } from "../lib/unit-context";
 import {
   clearActiveWorkout,
   isExpired,
@@ -51,6 +53,7 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
+  const { unit } = useUnit();
 
   // Vald en gång per öppning. Meningen är seedad i shared på dag + tid på
   // dygnet, så den är stabil hela dagen (pull-to-refresh byter den inte)
@@ -260,7 +263,10 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
           <ActivityIndicator />
         ) : summary ? (
           <View style={styles.statsGrid}>
-            <Stat label="Volym" value={`${summary.totalVolumeKg} kg`} />
+            <Stat
+              label="Volym"
+              value={formatVolume(summary.totalVolumeKg, unit)}
+            />
             <Stat label="Set" value={String(summary.setCount)} />
             <Stat label="Övningar" value={String(summary.exerciseCount)} />
             <Stat

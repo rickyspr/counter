@@ -8,8 +8,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { WorkoutSummary } from "@counter/shared";
+import { formatVolume, formatWeight, type WorkoutSummary } from "@counter/shared";
 import type { MediaItem } from "../lib/media-item";
+import { useUnit } from "../lib/unit-context";
 import { signMediaUrls } from "../lib/media-urls";
 import type { HistoryExercise, WorkoutMediaRow } from "../lib/queries";
 import { colors, radii, shadows } from "../lib/theme";
@@ -77,6 +78,7 @@ export function WorkoutDetailModal({
   kudosCount,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { unit } = useUnit();
   // Sökväg -> signerad URL. Bucketen är privat, så inget går att visa
   // förrän de hämtats.
   const [urls, setUrls] = useState<Map<string, string>>(new Map());
@@ -186,7 +188,7 @@ export function WorkoutDetailModal({
             <View style={styles.summaryRow}>
               <Summary
                 label="Volym"
-                value={`${workout.summary.totalVolumeKg.toLocaleString("sv-SE")} kg`}
+                value={formatVolume(workout.summary.totalVolumeKg, unit)}
               />
               <Summary label="Set" value={String(workout.summary.setCount)} />
               <Summary
@@ -227,7 +229,7 @@ export function WorkoutDetailModal({
                       <View key={index} style={styles.setRow}>
                         <Text style={styles.setLabel}>Set {index + 1}</Text>
                         <Text style={styles.setValue}>
-                          {set.weightKg.toLocaleString("sv-SE")} kg × {set.reps}
+                          {formatWeight(set.weightKg, unit)} × {set.reps}
                         </Text>
                       </View>
                     ))

@@ -4,7 +4,8 @@ import type {
   WorkoutSummary,
 } from "@counter/shared";
 import { useEffect, useState } from "react";
-import { formatDateTime, formatVolume } from "../lib/format";
+import { formatDateTime, formatVolume, formatWeight } from "../lib/format";
+import { useUnit } from "../lib/unit-context";
 import { Avatar } from "./Avatar";
 import { MediaViewer } from "./MediaViewer";
 
@@ -35,6 +36,7 @@ export function WorkoutDetailModal({
   kudos,
 }: Props) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const unit = useUnit();
 
   useEffect(() => {
     setViewerIndex(null);
@@ -92,7 +94,7 @@ export function WorkoutDetailModal({
           <div className="summary-grid">
             <Summary
               label="Volym"
-              value={formatVolume(entry.summary.totalVolumeKg)}
+              value={formatVolume(entry.summary.totalVolumeKg, unit)}
             />
             <Summary label="Set" value={String(entry.summary.setCount)} />
             <Summary
@@ -151,7 +153,7 @@ export function WorkoutDetailModal({
                     <div key={i} className="detail-set">
                       <span className="detail-set-label">Set {i + 1}</span>
                       <span>
-                        {set.weightKg.toLocaleString("sv-SE")} kg × {set.reps}
+                        {formatWeight(set.weightKg, unit)} × {set.reps}
                       </span>
                     </div>
                   ))

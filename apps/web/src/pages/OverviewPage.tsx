@@ -11,10 +11,18 @@ import {
 import { useEffect, useState } from "react";
 import { ProgressionChart } from "../components/ProgressionChart";
 import { WeeklyVolumeChart } from "../components/WeeklyVolumeChart";
-import { formatDuration, formatTotalVolume } from "../lib/format";
+import {
+  formatDuration,
+  formatTotalVolume,
+  formatWeight,
+  formatWeightValue,
+  unitLabel,
+} from "../lib/format";
 import { supabase } from "../lib/supabase";
+import { useUnit } from "../lib/unit-context";
 
 export function OverviewPage() {
+  const unit = useUnit();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<TrainingStats | null>(null);
@@ -92,7 +100,7 @@ export function OverviewPage() {
               <Stat label="Pass" value={String(stats!.workoutCount)} />
               <Stat
                 label="Total volym"
-                value={formatTotalVolume(stats!.totalVolumeKg)}
+                value={formatTotalVolume(stats!.totalVolumeKg, unit)}
               />
               <Stat
                 label="Total tid"
@@ -129,8 +137,8 @@ export function OverviewPage() {
             </div>
             {selectedBest && (
               <p className="text-muted">
-                Tyngsta set {selectedBest.heaviestSetKg.toLocaleString("sv-SE")} kg
-                {" · "}bästa e1RM {selectedBest.bestE1rmKg.toFixed(1)} kg
+                Tyngsta set {formatWeight(selectedBest.heaviestSetKg, unit)}
+                {" · "}bästa e1RM {formatWeight(selectedBest.bestE1rmKg, unit)}
               </p>
             )}
             {progressionLoading ? (
@@ -146,16 +154,16 @@ export function OverviewPage() {
               <thead>
                 <tr>
                   <th>Övning</th>
-                  <th>Tyngsta set (kg)</th>
-                  <th>Bästa e1RM (kg)</th>
+                  <th>Tyngsta set ({unitLabel(unit)})</th>
+                  <th>Bästa e1RM ({unitLabel(unit)})</th>
                 </tr>
               </thead>
               <tbody>
                 {bests.map((b) => (
                   <tr key={b.exerciseId}>
                     <td>{b.exerciseName}</td>
-                    <td>{b.heaviestSetKg.toLocaleString("sv-SE")}</td>
-                    <td>{b.bestE1rmKg.toFixed(1)}</td>
+                    <td>{formatWeightValue(b.heaviestSetKg, unit)}</td>
+                    <td>{formatWeightValue(b.bestE1rmKg, unit)}</td>
                   </tr>
                 ))}
               </tbody>

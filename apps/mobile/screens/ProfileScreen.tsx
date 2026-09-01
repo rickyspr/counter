@@ -1,4 +1,11 @@
-import { calculateAge, formatDuration } from "@counter/shared";
+import {
+  calculateAge,
+  formatDuration,
+  formatHeight,
+  formatTotalVolume,
+  formatVolume,
+  formatWeight,
+} from "@counter/shared";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -36,10 +43,12 @@ import {
 } from "../lib/queries";
 import { supabase } from "../lib/supabase";
 import { useSyncStatus } from "../lib/use-sync-status";
+import { useUnit } from "../lib/unit-context";
 
 interface Props {
   session: Session;
   onEditWorkout: (workoutId: string) => void;
+  onEditProfile: () => void;
   onOpenSettings: () => void;
 }
 
@@ -64,20 +73,14 @@ function formatMonthYear(iso: string): string {
   });
 }
 
-// Livstidsvolym hamnar i tiotusentals kg. Ton är läsbart, kg är det inte.
-function formatTotalVolume(kg: number): string {
-  if (kg >= 10000) {
-    return `${(kg / 1000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} ton`;
-  }
-  return `${Math.round(kg).toLocaleString("sv-SE")} kg`;
-}
-
 export function ProfileScreen({
   session,
   onEditWorkout,
+  onEditProfile,
   onOpenSettings,
 }: Props) {
   const userId = session.user.id;
+  const { unit } = useUnit();
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -210,11 +213,16 @@ export function ProfileScreen({
     <View style={styles.headerContent}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>Profil</Text>
-        <TouchableOpacity onPress={onOpenSettings}>
-          {/* Text, not a gear icon: no icon package is installed - see
-              the comment in TabBar. */}
-          <Text style={styles.editLink}>Redigera</Text>
-        </TouchableOpacity>
+        <View style={styles.titleLinks}>
+          <TouchableOpacity onPress={onOpenSettings}>
+            {/* Text, not a gear icon: no icon package is installed - see
+                the comment in TabBar. */}
+            <Text style={styles.editLink}>Inställningar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onEditProfile}>
+            <Text style={styles.editLink}>Redigera</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <SyncStatusBanner
@@ -245,11 +253,11 @@ export function ProfileScreen({
           profile?.bodyWeightKg !== undefined && (
             <Detail
               label="Vikt"
-              value={`${profile.bodyWeightKg.toLocaleString("sv-SE")} kg`}
+              value={formatWeight(profile.bodyWeightKg, unit)}
             />
           )}
         {profile?.heightCm !== null && profile?.heightCm !== undefined && (
-          <Detail label="Längd" value={`${profile.heightCm} cm`} />
+          <Detail label="Längd" value={formatHeight(profile.heightCm, unit)} />
         )}
         {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
       </View>
@@ -267,7 +275,7 @@ export function ProfileScreen({
             <Stat label="Pass" value={String(stats.workoutCount)} />
             <Stat
               label="Total volym"
-              value={formatTotalVolume(stats.totalVolumeKg)}
+              value={formatTotalVolume(stats.totalVolumeKg, unit)}
             />
             <Stat
               label="Total tid"
@@ -376,6 +384,7 @@ function WorkoutRow({
   onPress: () => void;
   onOpenMedia: (index: number) => void;
 }) {
+  const { unit } = useUnit();
   return (
     <View style={styles.workoutCard}>
       <WorkoutMediaCarousel items={mediaItems} width={cardWidth} onOpen={onOpenMedia} />
@@ -387,7 +396,7 @@ function WorkoutRow({
             {item.name ?? formatDate(item.startedAt)}
           </Text>
           <Text style={styles.workoutVolume}>
-            {item.summary.totalVolumeKg.toLocaleString("sv-SE")} kg
+            {formatVolume(item.summary.totalVolumeKg, unit)}
           </Text>
         </View>
         {item.name !== null && (
@@ -461,6 +470,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+  },
+  titleLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
   },
   title: {
     fontSize: 32,

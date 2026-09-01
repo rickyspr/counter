@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { NavBar } from "./components/NavBar";
 import { AuthProvider, useAuth } from "./lib/auth-context";
+import { UnitProvider } from "./lib/unit-context";
 import { FriendProfilePage } from "./pages/FriendProfilePage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -15,7 +16,7 @@ function AppContent() {
   if (!session) return <LoginPage />;
 
   return (
-    <>
+    <UnitProvider>
       <NavBar />
       <main>
         <Routes>
@@ -27,7 +28,7 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </>
+    </UnitProvider>
   );
 }
 

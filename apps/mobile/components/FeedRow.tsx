@@ -1,7 +1,9 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { formatVolume } from "@counter/shared";
 import type { FeedWorkoutEntry } from "../lib/feed";
 import type { MediaItem } from "../lib/media-item";
 import { colors, radii, shadows } from "../lib/theme";
+import { useUnit } from "../lib/unit-context";
 import { Avatar } from "./Avatar";
 import { WorkoutMediaCarousel } from "./WorkoutMediaCarousel";
 
@@ -39,6 +41,7 @@ export function FeedRow({
   // författarraden där är inte en tryckyta utan bara en visning.
   onOpenAuthor?: () => void;
 }) {
+  const { unit } = useUnit();
   const authorName = item.authorDisplayName ?? "Okänd";
   return (
     <View style={styles.workoutCard}>
@@ -62,7 +65,7 @@ export function FeedRow({
             {item.name ?? formatDate(item.startedAt)}
           </Text>
           <Text style={styles.workoutVolume}>
-            {item.summary.totalVolumeKg.toLocaleString("sv-SE")} kg
+            {formatVolume(item.summary.totalVolumeKg, unit)}
           </Text>
         </View>
         {item.name !== null && (

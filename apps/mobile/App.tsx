@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TabBar } from "./components/TabBar";
 import { colors } from "./lib/theme";
 import { AuthProvider, useAuth } from "./lib/auth-context";
+import { UnitProvider } from "./lib/unit-context";
 import { subscribeToMediaErrors } from "./lib/media-queue";
 import { clearMediaUrlCache } from "./lib/media-urls";
 import { subscribeToSyncErrors } from "./lib/offline-queue";
@@ -18,6 +19,7 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileSettingsScreen } from "./screens/ProfileSettingsScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { SocialScreen } from "./screens/SocialScreen";
 import { WorkoutSummaryScreen } from "./screens/WorkoutSummaryScreen";
 
@@ -26,6 +28,7 @@ type Screen =
   | { name: "social" }
   | { name: "profile" }
   | { name: "profile-settings" }
+  | { name: "settings" }
   | { name: "workout"; workoutId: string }
   | { name: "workout-summary"; summary: FinishedWorkoutSummary }
   | { name: "edit-workout"; workoutId: string }
@@ -133,6 +136,13 @@ function AppContent() {
     );
   }
 
+  // Non-profile settings (unit choice, rest timer). Its own branch after
+  // profile-settings, same reasons: no tab bar in a subpage, and leaving
+  // it re-mounts ProfileScreen.
+  if (screen.name === "settings") {
+    return <SettingsScreen onClose={() => setScreen({ name: "profile" })} />;
+  }
+
   // Same shape as edit-workout/profile-settings, for the same reason: a
   // friend's profile is reached from Socialt but isn't itself one of the
   // three tabs, so it needs its own branch to hide the tab bar.
@@ -154,7 +164,8 @@ function AppContent() {
           onEditWorkout={(workoutId) =>
             setScreen({ name: "edit-workout", workoutId })
           }
-          onOpenSettings={() => setScreen({ name: "profile-settings" })}
+          onEditProfile={() => setScreen({ name: "profile-settings" })}
+          onOpenSettings={() => setScreen({ name: "settings" })}
         />
       ) : screen.name === "social" ? (
         <SocialScreen
@@ -197,8 +208,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <AppContent />
-        <StatusBar style="auto" />
+        <UnitProvider>
+          <AppContent />
+          <StatusBar style="auto" />
+        </UnitProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
