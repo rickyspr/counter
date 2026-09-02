@@ -21,6 +21,8 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileSettingsScreen } from "./screens/ProfileSettingsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SocialScreen } from "./screens/SocialScreen";
+import { TemplateEditorScreen } from "./screens/TemplateEditorScreen";
+import { TemplateListScreen } from "./screens/TemplateListScreen";
 import { WorkoutSummaryScreen } from "./screens/WorkoutSummaryScreen";
 
 type Screen =
@@ -29,6 +31,8 @@ type Screen =
   | { name: "profile" }
   | { name: "profile-settings" }
   | { name: "settings" }
+  | { name: "template-list" }
+  | { name: "template-editor"; templateId: string | null }
   | { name: "workout"; workoutId: string }
   | { name: "workout-summary"; summary: FinishedWorkoutSummary }
   | { name: "edit-workout"; workoutId: string }
@@ -143,6 +147,34 @@ function AppContent() {
     return <SettingsScreen onClose={() => setScreen({ name: "profile" })} />;
   }
 
+  // Passmallar. Egna grenar efter settings, av samma skäl: en subpage
+  // har ingen flikrad att göra med, och att lämna den monterar om
+  // HomeScreen som då laddar om mall-listan.
+  if (screen.name === "template-list") {
+    return (
+      <TemplateListScreen
+        userId={session.user.id}
+        onOpenTemplate={(templateId) =>
+          setScreen({ name: "template-editor", templateId })
+        }
+        onCreateTemplate={() =>
+          setScreen({ name: "template-editor", templateId: null })
+        }
+        onClose={() => setScreen({ name: "home" })}
+      />
+    );
+  }
+
+  if (screen.name === "template-editor") {
+    return (
+      <TemplateEditorScreen
+        userId={session.user.id}
+        templateId={screen.templateId}
+        onClose={() => setScreen({ name: "template-list" })}
+      />
+    );
+  }
+
   // Same shape as edit-workout/profile-settings, for the same reason: a
   // friend's profile is reached from Socialt but isn't itself one of the
   // three tabs, so it needs its own branch to hide the tab bar.
@@ -179,6 +211,7 @@ function AppContent() {
           onOpenWorkout={(workoutId) =>
             setScreen({ name: "workout", workoutId })
           }
+          onManageTemplates={() => setScreen({ name: "template-list" })}
         />
       )}
       <TabBar

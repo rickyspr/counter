@@ -190,6 +190,27 @@ export function ActiveWorkoutScreen({
             })),
           );
           setMedia(stored.media ?? []);
+
+          // Skuggvärden till ett återupptaget - eller från en mall
+          // byggt - pass: sektionerna på disk har previousSets: [], så
+          // hämta dem i bakgrunden på samma sätt som handlePickExercise
+          // gör när en övning läggs till. Rent stöd - inget fel om det
+          // inte kommer något svar.
+          for (const section of stored.sections) {
+            if (section.previousSets.length > 0) continue;
+            void fetchPreviousSetsForExercise(userId, section.exerciseId)
+              .then((previousSets) => {
+                if (cancelled || previousSets.length === 0) return;
+                setSections((prev) =>
+                  prev.map((s) =>
+                    s.workoutExerciseId === section.workoutExerciseId
+                      ? { ...s, previousSets }
+                      : s,
+                  ),
+                );
+              })
+              .catch(() => {});
+          }
         }
         setHydrated(true);
       })
@@ -595,49 +616,63 @@ export function ActiveWorkoutScreen({
     // när avslutet blockeras av ett ANNAT set. Raden hade då legat på
     // servern med saved === null lokalt, och ett efterföljande ✕ hade
     // tagit bort den bara från skärmen och lämnat kvar den i databasen.
-    const problems: { setId: string | null; label: string }[] = [];
+    const problems: { setId: string; label: string }[] = [];
     const writes: PendingSetWrite[] = [];
+    // Sektioner som överlever avslutet, och sektioner utan en enda
+    // ifylld rad - de senare tas bort ur passet (delete_exercise), samma
+    // enhetliga regel som en tom rad.
+    const committed: Section[] = [];
+    const emptySections: Section[] = [];
 
-    const committed = sections.map((section) => {
-      if (section.sets.length === 0) {
-        problems.push({
-          setId: null,
-          label: `${section.exerciseName} – inga set`,
+    for (const section of sections) {
+      const keptSets: LoggedSet[] = [];
+      section.sets.forEach((set, index) => {
+        // Helt tom, aldrig skriven rad - ignoreras tyst. Exakt samma
+        // "tom"-definition som confirmDeleteSet.
+        if (
+          set.repsDraft.trim() === "" &&
+          set.weightDraft.trim() === "" &&
+          set.saved === null
+        ) {
+          return;
+        }
+        const parsed = parseSetDrafts(set, unit);
+        if (parsed === null) {
+          problems.push({
+            setId: set.id,
+            label: `${section.exerciseName} – set ${index + 1}`,
+          });
+          keptSets.push(set);
+          return;
+        }
+        if (isUnchanged(set, parsed, unit)) {
+          keptSets.push(set);
+          return;
+        }
+        writes.push({ set, section, parsed });
+        keptSets.push({
+          ...set,
+          saved: parsed,
+          repsDraft: String(parsed.reps),
+          weightDraft: weightInputValue(parsed.weightKg, unit),
         });
-        return section;
+      });
+
+      const nextSection = { ...section, sets: keptSets };
+      if (keptSets.length === 0) {
+        emptySections.push(nextSection);
+      } else {
+        committed.push(nextSection);
       }
-      return {
-        ...section,
-        sets: section.sets.map((set, index) => {
-          const parsed = parseSetDrafts(set, unit);
-          if (parsed === null) {
-            problems.push({
-              setId: set.id,
-              label: `${section.exerciseName} – set ${index + 1}`,
-            });
-            return set;
-          }
-          if (isUnchanged(set, parsed, unit)) return set;
-          writes.push({ set, section, parsed });
-          return {
-            ...set,
-            saved: parsed,
-            repsDraft: String(parsed.reps),
-            weightDraft: weightInputValue(parsed.weightKg, unit),
-          };
-        }),
-      };
-    });
+    }
 
     if (problems.length > 0) {
       const lines = problems.slice(0, 5).map((p) => `• ${p.label}`);
       if (problems.length > lines.length) {
         lines.push(`…och ${problems.length - lines.length} till`);
       }
-      setFlaggedSetIds(
-        problems.map((p) => p.setId).filter((id): id is string => id !== null),
-      );
-      const firstSetId = problems.find((p) => p.setId !== null)?.setId;
+      setFlaggedSetIds(problems.map((p) => p.setId));
+      const firstSetId = problems[0]?.setId;
       Alert.alert(
         "Fyll i alla set",
         `Fyll i eller ta bort följande innan du avslutar:\n\n${lines.join("\n")}`,
@@ -655,12 +690,11 @@ export function ActiveWorkoutScreen({
 
     setFlaggedSetIds([]);
 
-    // Har `problems` inte stoppat oss finns det, för varje section, redan
-    // minst ett satt/skrivet set - annars hade den flaggats som "inga set"
-    // eller "unparseable" ovan. Så `sections.length === 0` är precis
-    // liktydigt med "inget set någonsin loggat". Media räknas som värdefullt
-    // i sig - ett pass med bilder men utan set behåll, inte kastas.
-    if (sections.length === 0 && media.length === 0) {
+    // `committed` är sektionerna med minst ett ifyllt set - en tom övning
+    // är redan utsorterad till `emptySections`. `committed.length === 0`
+    // betyder alltså "inget set någonsin loggat". Media räknas som
+    // värdefullt i sig - ett pass med bilder men utan set behålls.
+    if (committed.length === 0 && media.length === 0) {
       try {
         await deleteWorkout(workoutId);
         await removeAllWorkoutMedia(userId, media);
@@ -688,13 +722,17 @@ export function ActiveWorkoutScreen({
         { text: "Fortsätt logga", style: "cancel" },
         {
           text: "Avsluta pass",
-          onPress: () => void commitFinish(committed, writes),
+          onPress: () => void commitFinish(committed, writes, emptySections),
         },
       ],
     );
   }
 
-  async function commitFinish(committed: Section[], writes: PendingSetWrite[]) {
+  async function commitFinish(
+    committed: Section[],
+    writes: PendingSetWrite[],
+    emptySections: Section[],
+  ) {
     // Sätts först när passet är avslutat på riktigt (kön har fått
     // end_workout). Skickas vidare till firande-/överblicksskärmen.
     let finishedSummary: FinishedWorkoutSummary | null = null;
@@ -709,6 +747,13 @@ export function ActiveWorkoutScreen({
             w.parsed.reps,
             w.parsed.weightKg,
           ),
+        ),
+      );
+      // Övningar utan ett enda ifyllt set tas bort ur passet - samma
+      // enhetliga regel som en tom rad, och före end_workout.
+      await Promise.all(
+        emptySections.map((s) =>
+          removeExerciseFromWorkout(s.workoutExerciseId),
         ),
       );
       setSections(committed);
