@@ -21,6 +21,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radii, shadows } from "../lib/theme";
 import { SyncStatusBanner } from "../components/SyncStatusBanner";
+import { TemplatePicker } from "../components/TemplatePicker";
+import {
+  buildActiveWorkoutFromTemplate,
+  loadTemplates,
+  resolveTemplateExercises,
+  type WorkoutTemplate,
+} from "../lib/workout-templates";
 import { useSyncStatus } from "../lib/use-sync-status";
 import { useUnit } from "../lib/unit-context";
 import {
@@ -31,6 +38,7 @@ import {
   type ActiveWorkout,
 } from "../lib/active-workout";
 import {
+  addExerciseToWorkout,
   deleteWorkout,
   fetchExerciseCatalog,
   fetchLatestWorkoutSummaryInput,
@@ -44,13 +52,23 @@ interface Props {
   greetingName: string;
   // Används för både ett nystartat och ett återupptaget pass.
   onOpenWorkout: (workoutId: string) => void;
+  // Öppnar mall-listan (bygga/redigera/ta bort mallar).
+  onManageTemplates: () => void;
 }
 
-export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
+export function HomeScreen({
+  userId,
+  greetingName,
+  onOpenWorkout,
+  onManageTemplates,
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [kudosCount, setKudosCount] = useState<number | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
   const { online, pendingCount, pendingMediaCount } = useSyncStatus();
   const insets = useSafeAreaInsets();
   const { unit } = useUnit();
@@ -117,6 +135,12 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
     setActiveWorkout(stored);
   }, [userId]);
 
+  // Mallar ligger lokalt (se lib/workout-templates.ts), så listan syns
+  // även utan uppkoppling.
+  const loadTemplateList = useCallback(async () => {
+    setTemplates(await loadTemplates(userId));
+  }, [userId]);
+
   useEffect(() => {
     loadLatestWorkout();
   }, [loadLatestWorkout]);
@@ -124,6 +148,10 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
   useEffect(() => {
     loadActive().catch(() => {});
   }, [loadActive]);
+
+  useEffect(() => {
+    loadTemplateList().catch(() => {});
+  }, [loadTemplateList]);
 
   useEffect(() => {
     // Värmer övningskatalog-cachen (se lib/queries.ts) medan vi
@@ -136,6 +164,8 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
   // inte nätverket, så ett pass går att starta offline utan märkbar
   // fördröjning.
   async function handleStart() {
+    if (starting) return;
+    setStarting(true);
     try {
       const workout = await startWorkout(userId);
       // Blobben skrivs redan här, innan skärmen öppnas, så att passet
@@ -157,6 +187,76 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
         "Kunde inte starta passet",
         err instanceof Error ? err.message : "Okänt fel.",
       );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  // Startar ett pass förifyllt från en mall. Ordningen är inte
+  // förhandlingsbar:
+  //  - Hela blobben måste nå disk INNAN övningarna köas, annars kan en
+  //    add_exercise spelas upp mot ett workout som ännu inte finns
+  //    (23503).
+  //  - Köandet måste ske INNAN all persistens är klar bara på så sätt att
+  //    räknarna redan är sparade: annars kan en krasch mellan enqueue och
+  //    spar ge samma order_index två gånger (23505).
+  //  - Räknarna först, sektionerna sist: dör appen i glappet är värsta
+  //    fallet bara kosmetiskt (en sektion saknas i den återupptagna
+  //    blobben, men raden ligger i kön).
+  // Båda saveActiveWorkout måste awaitas - annars kan de slås ihop.
+  async function handleStartFromTemplate(template: WorkoutTemplate) {
+    if (starting) return;
+    setStarting(true);
+    setPickerOpen(false);
+    try {
+      const workout = await startWorkout(userId);
+      const catalog = await fetchExerciseCatalog().catch(() => []);
+      const { exercises, missing } = resolveTemplateExercises(template, catalog);
+
+      if (exercises.length === 0) {
+        Alert.alert(
+          "Mallen går inte att starta",
+          "Övningarna i mallen finns inte längre. Redigera mallen och lägg till övningar.",
+        );
+        return;
+      }
+      if (missing.length > 0) {
+        // Inte inväntad - starten fortsätter med de övningar som finns.
+        Alert.alert(
+          "Vissa övningar saknas",
+          `Följande övningar finns inte längre och hoppas över: ${missing.join(", ")}.`,
+        );
+      }
+
+      const blob = buildActiveWorkoutFromTemplate({
+        userId,
+        workoutId: workout.id,
+        startedAt: workout.started_at,
+        name: template.name,
+        exercises,
+        unit,
+      });
+
+      // Räknarna på disk innan de förbrukas, sektionerna ännu inte.
+      await saveActiveWorkout({ ...blob, sections: [] });
+      for (const [orderIndex, section] of blob.sections.entries()) {
+        await addExerciseToWorkout(
+          workout.id,
+          section.exerciseId,
+          orderIndex,
+          section.workoutExerciseId,
+        );
+      }
+      // Nu skrivs sektionerna.
+      await saveActiveWorkout(blob);
+      onOpenWorkout(workout.id);
+    } catch (err) {
+      Alert.alert(
+        "Kunde inte starta passet",
+        err instanceof Error ? err.message : "Okänt fel.",
+      );
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -203,6 +303,7 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
           onRefresh={() => {
             loadLatestWorkout();
             loadActive().catch(() => {});
+            loadTemplateList().catch(() => {});
           }}
         />
       }
@@ -289,11 +390,52 @@ export function HomeScreen({ userId, greetingName, onOpenWorkout }: Props) {
           som då varken går att återuppta eller slänga, eftersom kortet
           med "Släng" försvinner i samma veva. Vägen till ett nytt pass
           går via Fortsätt eller Släng. */}
-      {!activeWorkout && (
-        <TouchableOpacity style={styles.button} onPress={handleStart}>
-          <Text style={styles.buttonText}>Starta nytt pass</Text>
-        </TouchableOpacity>
-      )}
+      {!activeWorkout &&
+        (templates.length === 0 ? (
+          <View style={styles.startBlock}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleStart}
+              disabled={starting}
+            >
+              <Text style={styles.buttonText}>Starta nytt pass</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onManageTemplates}>
+              <Text style={styles.linkText}>Skapa en mall</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.startBlock}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleStart}
+              disabled={starting}
+            >
+              <Text style={styles.buttonText}>Starta tomt pass</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => setPickerOpen(true)}
+              disabled={starting}
+            >
+              <Text style={styles.secondaryButtonText}>Starta från mall</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onManageTemplates}>
+              <Text style={styles.linkText}>Hantera mallar</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+
+      <TemplatePicker
+        visible={pickerOpen}
+        templates={templates}
+        onPick={(template) => void handleStartFromTemplate(template)}
+        onClose={() => setPickerOpen(false)}
+        onManage={() => {
+          setPickerOpen(false);
+          onManageTemplates();
+        }}
+      />
     </ScrollView>
   );
 }
@@ -429,5 +571,27 @@ const styles = StyleSheet.create({
     color: colors.onAccent,
     fontSize: 16,
     fontWeight: "700",
+  },
+  startBlock: {
+    gap: 12,
+  },
+  secondaryButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    paddingVertical: 12,
+    alignItems: "center",
+    ...shadows.card,
+  },
+  secondaryButtonText: {
+    color: colors.inkSecondary,
+    fontWeight: "600",
+  },
+  linkText: {
+    color: colors.accentDeep,
+    fontWeight: "600",
+    textAlign: "center",
+    paddingVertical: 4,
   },
 });

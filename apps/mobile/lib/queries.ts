@@ -163,12 +163,19 @@ export async function endWorkout(
   return { ended_at };
 }
 
+// Set-raden skapas i UI:t innan den fyllts i, så id:t måste finnas före
+// första sparandet. Samma mönster som newSetId: klienten äger
+// primärnyckeln. Används när en mall bygger hela passet på förhand.
+export function newWorkoutExerciseId(): string {
+  return Crypto.randomUUID();
+}
+
 export async function addExerciseToWorkout(
   workoutId: string,
   exerciseId: string,
   orderIndex: number,
+  id: string = Crypto.randomUUID(),
 ): Promise<{ id: string; exercise_id: string }> {
-  const id = Crypto.randomUUID();
   await enqueue({
     type: "add_exercise",
     id,

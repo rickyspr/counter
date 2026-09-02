@@ -514,6 +514,46 @@ unused by app code (the RPCs replaced them) but kept with their tests.
       `confirmDeleteSet` is deliberately untouched - that screen requires
       a drained queue and reads server truth, so `saved === null` means
       something else there.
+- [x] Passmallar på mobilen: bygg och spara namngivna mallar (övningar,
+      antal set, valfritt reps/vikt per set), starta ett pass förifyllt
+      från en mall, ändra allt som vanligt medan passet pågår.
+      Mallar är LOKALA (`apps/mobile/lib/workout-templates.ts`, en
+      AsyncStorage-nyckel per userId, `counter:workout-templates:${userId}`
+      i unit-context.ts-mönstret). Ingen tabell, ingen RLS, ingen synk,
+      inget i packages/shared eller apps/web, inga nya native-beroenden.
+      Mallar försvinner vid telefonbyte/ominstallation - accepterat
+      vägval, kan flyttas till en tabell senare. Validering vid läsning i
+      samma anda som `parseStored` i active-workout.ts: en trasig post
+      släpps, resten behålls, `version` bumpas aldrig för additiva fält.
+      Att starta från en mall bygger EXAKT den `ActiveWorkout`-blob som
+      `ActiveWorkoutScreen` redan läser vid hydrering
+      (`buildActiveWorkoutFromTemplate`), så passflödet får ingen ny
+      kodväg, inga nya köåtgärder. `HomeScreen.handleStartFromTemplate`
+      skriver i två steg: hela blobben (med räknarna) till disk INNAN
+      övningarna köas (annars `add_exercise` mot ett workout som inte
+      finns → 23503), och räknarna sparade innan de förbrukas (annars kan
+      en krasch ge samma `order_index` två gånger → 23505); räknare
+      först, sektioner sist gör värsta fallet bara kosmetiskt.
+      `addExerciseToWorkout` tar ett valfritt fjärde `id`-argument så
+      klienten kan förgenerera `workout_exercises.id` (`newWorkoutExerciseId`).
+      Förifyllda reps/vikt är UTKAST (`saved: null`, svart text), skrivs
+      vid blur eller vid avslut precis som en handifylld rad; ett
+      förifyllt värde vinner över "förra passet"-hinten på den raden.
+      Ändringar i ett pågående pass påverkar aldrig mallen.
+      Mall-editorn är egen (`TemplateEditorScreen`, `TemplateListScreen`,
+      egna grenar i App.tsx-routern som EditWorkoutScreen), återanvänder
+      `ExerciseSection`/`ExercisePicker` men inte `ActiveWorkoutScreen`.
+      Mallnamn har ett default ("Mall N", minsta lediga N), krävs inte,
+      går alltid att ändra; mallnamnet förifylls som passets namn och
+      töms fältet gäller `defaultWorkoutName()`. Mallvikter lagras i kg.
+      Avslutsvalideringen i `ActiveWorkoutScreen` fick en ny enhetlig
+      regel: en helt tom, aldrig skriven rad ignoreras tyst, en övning
+      utan en enda ifylld rad tas bort ur passet med `delete_exercise`
+      (den gamla "inga set"-spärren är borta), ett helt tomt pass raderas
+      fortfarande. Räknas ut en gång i insamlingsfasen (fri från
+      sidoeffekter) och skickas som argument till `commitFinish`.
+      Vid hydrering hämtas "förra passet"-hintarna för sektioner utan
+      dem, så ett mall-startat eller återupptaget pass också får skuggvärden.
 - [ ] Body weight over time. Today `body_weight_kg` is one current
       value; a history is its own table plus a chart on the web, not a
       column to swap out later
