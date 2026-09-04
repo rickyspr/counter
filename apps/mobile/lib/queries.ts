@@ -1,10 +1,12 @@
 import {
+  dedupeExerciseCatalog,
   fetchExerciseProgression as sharedFetchProgression,
   fetchLatestWorkoutSummaryInput as sharedFetchLatest,
   fetchWorkoutHistory as sharedFetchHistory,
   mediaStoragePath,
   sortMedia,
   toMediaRow,
+  type ExerciseOption,
   type WorkoutHistoryCursor,
   type WorkoutMediaRow,
 } from "@counter/shared";
@@ -26,6 +28,7 @@ export {
   cursorFor,
   mapWorkoutHistoryRow,
   WORKOUT_HISTORY_PAGE_SIZE,
+  type ExerciseOption,
   type HistoryExercise,
   type RawWorkoutRow,
   type WorkoutHistoryEntry,
@@ -46,16 +49,6 @@ export const fetchLatestWorkoutSummaryInput = (userId: string) =>
 // stjärna på övningar som slog sitt tidigare tyngsta lyft.
 export const fetchExerciseTopWeightHistory = (exerciseId: string) =>
   sharedFetchProgression(supabase, exerciseId);
-
-export interface ExerciseOption {
-  id: string;
-  name: string;
-  muscle_group: string | null;
-  // Sant bara för rader ur DEFAULT_EXERCISE_CATALOG som aldrig nått
-  // servern - ExercisePicker måste skapa en riktig rad (via onCreate)
-  // innan en sådan post faktiskt används i ett pass.
-  fallback?: boolean;
-}
 
 const EXERCISE_CACHE_KEY = "counter:exercise-cache";
 const PREVIOUS_SETS_CACHE_PREFIX = "counter:previous-sets:";
@@ -90,18 +83,26 @@ async function loadExerciseCatalog(): Promise<ExerciseOption[]> {
   try {
     const { data, error } = await supabase
       .from("exercises")
-      .select("id, name, muscle_group")
+      .select("id, name, muscle_group, user_id")
       .order("muscle_group", { ascending: true })
       .order("name", { ascending: true });
     if (error) throw error;
-    await writeJSON(EXERCISE_CACHE_KEY, data);
-    return data;
+    // Serverns rader kan (tills migrationen är körd på en given databas)
+    // fortfarande innehålla dubbletter av globala övningar - deduperas
+    // innan de cachas, så att cachen aldrig är smutsigare än servern.
+    const deduped = dedupeExerciseCatalog(data);
+    await writeJSON(EXERCISE_CACHE_KEY, deduped);
+    return deduped;
   } catch {
     const cached = await readJSON<ExerciseOption[] | null>(EXERCISE_CACHE_KEY, null);
-    if (cached) return cached;
+    // Cachen kan vara skriven innan user_id fanns med i selecten eller
+    // innan dedupen fanns - körs genom samma dedup som live-hämtningen.
+    if (cached) return dedupeExerciseCatalog(cached);
     // Katalogen har aldrig hämtats eller cachats på den här enheten (t.ex.
     // en helt ny installation utan nät) - sista utväg är den paketerade
     // standardlistan istället för att kasta och lämna väljaren tom.
+    // Rörs INTE av dedupen: listan är handunderhållen och unik per
+    // konstruktion, och att dedupa den skulle dölja ett skrivfel i filen.
     return DEFAULT_EXERCISE_CATALOG.map((exercise, index) => ({
       id: `default:${index}`,
       name: exercise.name,
@@ -117,7 +118,10 @@ async function loadExerciseCatalog(): Promise<ExerciseOption[]> {
 async function cacheCreatedExercise(exercise: ExerciseOption): Promise<void> {
   const cached = await readJSON<ExerciseOption[] | null>(EXERCISE_CACHE_KEY, null);
   const withoutDuplicate = (cached ?? []).filter((e) => e.id !== exercise.id);
-  await writeJSON(EXERCISE_CACHE_KEY, [...withoutDuplicate, exercise]);
+  await writeJSON(
+    EXERCISE_CACHE_KEY,
+    dedupeExerciseCatalog([...withoutDuplicate, exercise]),
+  );
 }
 
 export async function createCustomExercise(
@@ -127,7 +131,7 @@ export async function createCustomExercise(
 ): Promise<ExerciseOption> {
   const id = Crypto.randomUUID();
   await enqueue({ type: "create_exercise", id, user_id: userId, name, muscle_group: muscleGroup });
-  const exercise: ExerciseOption = { id, name, muscle_group: muscleGroup };
+  const exercise: ExerciseOption = { id, name, muscle_group: muscleGroup, user_id: userId };
   await cacheCreatedExercise(exercise);
   return exercise;
 }

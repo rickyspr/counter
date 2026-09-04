@@ -12,7 +12,7 @@
 // buildActiveWorkoutFromTemplate), så passflödet får ingen ny kodväg.
 
 import * as Crypto from "expo-crypto";
-import { weightInputValue, type Unit } from "@counter/shared";
+import { exerciseNameKey, weightInputValue, type Unit } from "@counter/shared";
 import type { ActiveWorkout, PersistedSection } from "./active-workout";
 import type { ExerciseOption } from "./queries";
 import { newSetId, newWorkoutExerciseId } from "./queries";
@@ -176,12 +176,29 @@ export function resolveTemplateExercises(
   }
 
   const byId = new Map(catalog.map((e) => [e.id, e]));
+  // Skydd mot dubblettbuggen som 20260904090000_dedupe_global_exercises.sql
+  // rättar: en mall byggd innan den migrationen kan peka på ett exercises.id
+  // som raderats (förloraren i en namnkrock). Katalogen kommer redan
+  // deduperad, så det här är mest ett skydd - första träffen per namn
+  // vinner.
+  const byName = new Map<string, ExerciseOption>();
+  for (const exercise of catalog) {
+    const key = exerciseNameKey(exercise.name);
+    if (!byName.has(key)) byName.set(key, exercise);
+  }
+
   const exercises: TemplateExercise[] = [];
   const missing: string[] = [];
   for (const exercise of template.exercises) {
-    const match = byId.get(exercise.exerciseId);
+    const match =
+      byId.get(exercise.exerciseId) ??
+      byName.get(exerciseNameKey(exercise.exerciseName));
     if (match) {
-      exercises.push({ ...exercise, exerciseName: match.name });
+      // Namnträffen pekar om till den nya raden - id OCH namn hämtas från
+      // katalogen, som om det vore en id-träff. Skriver INGET till disk
+      // här: funktionen är ren, mallen kan fortsätta ha det gamla id:t och
+      // nästa körning löser om det igen.
+      exercises.push({ ...exercise, exerciseId: match.id, exerciseName: match.name });
     } else {
       missing.push(exercise.exerciseName);
     }
