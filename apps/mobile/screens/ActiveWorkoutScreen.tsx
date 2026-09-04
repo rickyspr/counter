@@ -1,4 +1,5 @@
 import {
+  dedupeExerciseCatalog,
   defaultWorkoutName,
   elapsedMinutes,
   formatDuration,
@@ -959,11 +960,12 @@ export function ActiveWorkoutScreen({
         onClose={() => setPickerOpen(false)}
         onCreate={async (name, muscleGroup) => {
           const exercise = await createCustomExercise(userId, name, muscleGroup);
-          // filter, inte append: samma anrop materialiserar en post ur
-          // DEFAULT_EXERCISE_CATALOG (samma namn, fallback: true) till en
-          // riktig rad - annars stod placeholdern och dubbletten kvar
-          // bredvid varandra i samma lista.
-          setCatalog((prev) => [...prev.filter((e) => e.name !== exercise.name), exercise]);
+          // dedupeExerciseCatalog, inte ett hemmagjort filter: samma anrop
+          // materialiserar en post ur DEFAULT_EXERCISE_CATALOG (samma namn,
+          // fallback: true) till en riktig rad, och den delade dedupen är
+          // vad som avgör vinnaren på ett enhetligt sätt (global rad före
+          // egen, egen före fallback) om namnet redan fanns i katalogen.
+          setCatalog((prev) => dedupeExerciseCatalog([...prev, exercise]));
           return exercise;
         }}
       />

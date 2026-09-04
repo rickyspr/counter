@@ -1,4 +1,5 @@
 import {
+  dedupeExerciseCatalog,
   parseWeightInput,
   weightInputValue,
   WORKOUT_NAME_MAX_LENGTH,
@@ -440,10 +441,10 @@ export function TemplateEditorScreen({ userId, templateId, onClose }: Props) {
         onClose={() => setPickerOpen(false)}
         onCreate={async (name, muscleGroup) => {
           const exercise = await createCustomExercise(userId, name, muscleGroup);
-          setCatalog((prev) => [
-            ...prev.filter((e) => e.name !== exercise.name),
-            exercise,
-          ]);
+          // Delad dedup, samma som ActiveWorkoutScreen/EditWorkoutScreen:
+          // avgör vinnaren enhetligt (global rad före egen, egen före
+          // fallback) om namnet redan fanns i katalogen.
+          setCatalog((prev) => dedupeExerciseCatalog([...prev, exercise]));
           return exercise;
         }}
       />

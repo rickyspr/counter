@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./exercise-catalog";
 export * from "./client";
 export * from "./media";
 export * from "./profile";
